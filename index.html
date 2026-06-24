@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بوابة تخطيط وجلسات العمل - SkillBridge 2.0</title>
+    <!-- Tailwind CSS (standard build via unpkg for modern layouts) -->
+    <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
+    <!-- Google Fonts: Cairo & Fira Code (for terminal feel) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome for interactive icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+        }
+        .code-font {
+            font-family: 'Fira Code', 'Courier New', monospace;
+        }
+        /* Custom scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #020617;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
+
+    <!-- Active Top Planning Alert / Health Bar -->
+    <div class="bg-gradient-to-r from-emerald-600 via-teal-900 to-indigo-900 text-white px-6 py-2 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs border-b border-emerald-500/20 shadow-md">
+        <div class="flex items-center gap-2 font-bold">
+            <span class="bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full text-[10px] animate-pulse">لوحة نشطة</span>
+            <span><i class="fa-solid fa-people-group"></i> جلسة عمل تفاعلية لفريق الهاكاثون (4 أعضاء)</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="hidden md:inline"><i class="fa-solid fa-clock-rotate-left"></i> التغييرات والتصويتات والتعليقات تُحفظ تلقائياً في المتصفح</span>
+            <button onclick="clearAllData()" class="bg-slate-950/40 hover:bg-slate-950/65 px-2.5 py-1 rounded border border-white/10 text-[10px] font-semibold transition">
+                <i class="fa-solid fa-trash-can"></i> إعادة تهيئة البيانات
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="bg-emerald-500 text-slate-950 w-11 h-11 rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl shadow-emerald-500/15">
+                <i class="fa-solid fa-diagram-project"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+                    SkillBridge <span class="bg-emerald-500/15 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30 font-extrabold">منصة الهاكاثون المعتمدة 2.0</span>
+                </h1>
+                <p class="text-xs text-slate-400">بوابة التخطيط، فحص الأكواد، التصويت التشاركي، والميزات التفاعلية الفائزة</p>
+            </div>
+        </div>
+
+        <!-- Live Planning Stats Panel -->
+        <div class="flex items-center gap-3 text-xs hidden sm:flex">
+            <div class="bg-slate-900/80 px-3.5 py-2 rounded-xl border border-slate-800 flex items-center gap-2.5">
+                <div class="text-right">
+                    <p class="text-[10px] text-slate-500 font-bold">نسبة موافقة الخطة</p>
+                    <p class="font-extrabold text-emerald-400" id="global-approval-rate">100%</p>
+                </div>
+                <div class="w-2.5 h-8 bg-slate-950 rounded-full overflow-hidden flex items-end">
+                    <div id="global-approval-bar" class="w-full bg-emerald-500 transition-all duration-500" style="height: 100%"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dynamic Workspace Layout -->
+    <div class="flex flex-1 flex-col lg:flex-row overflow-hidden">
+
+        <!-- Sidebar Navigation (Responsive Drawer) -->
+        <aside class="w-full lg:w-64 border-l lg:border-l border-b lg:border-b-0 border-slate-900 bg-slate-950 p-4 flex flex-col gap-2 overflow-y-auto shrink-0">
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-2"><i class="fa-solid fa-compass ml-1"></i> استكشاف الخطة والأقسام</p>
+
+            <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="nav-btn active flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
+                <i class="fa-solid fa-house-chimney text-emerald-400 w-5 text-sm"></i>
+                <span>الرؤية والـ Pitch الفائز</span>
+            </button>
+
+            <button onclick="switchTab('tab-bugs')" id="btn-tab-bugs" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
+                <i class="fa-solid fa-bug-slash text-rose-400 w-5 text-sm"></i>
+                <span>تقرير فحص الأخطاء وعلاجها</span>
+            </button>
+
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2"><i class="fa-solid fa-wand-magic-sparkles ml-1"></i> رحلة الطالب الفائقة بالـ AI</p>
+
+            <button onclick="switchTab('tab-journey')" id="btn-tab-journey" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
+                <i class="fa-solid fa-graduation-cap text-sky-400 w-5 text-sm"></i>
+                <span>مقيّم الـ CV والمهارات التفاعلي</span>
+            </button>
+
+            <button onclick="switchTab('tab-profile')" id="btn-tab-profile" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
+                <i class="fa-solid fa-id-card-clip text-indigo-400 w-5 text-sm"></i>
+                <span>الملف غير التقليدي (Live Generator)</span>
+            </button>
+
+            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2"><i class="fa-solid fa-cubes-stacked ml-1"></i> آليات الحركة والأمن المالي</p>
+
+            <button onclick="switchTab('tab-squads')" id="btn-tab-squads" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
+                <i class="fa-solid fa-people-group text-purple-400 w-5 text-sm"></i>
+                <span>الفرق البرمجية (Squad Creator)</span>
+            </button>
+
+            <button onclick="switchTab('tab-gigs')" id="btn-tab-gigs" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
+                <i class="fa-solid fa-bolt text-yellow-400 w-5 text-sm"></i>
+                <span>المايكرو جيجز والـ Social</span>
+            </button>
+
+            <button onclick="switchTab('tab-proactive')" id="btn-tab-proactive" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white border border-dashed border-emerald-500/20 bg-emerald-500/5">
+                <i class="fa-solid fa-trophy text-emerald-400 w-5 text-sm"></i>
+                <span>ميزات المركز الأول (أفكار ثورية)</span>
+            </button>
+
+            <div class="mt-auto pt-4 border-t border-slate-900 hidden lg:block">
+                <div class="bg-gradient-to-br from-emerald-500/10 to-indigo-500/10 p-3.5 rounded-xl border border-emerald-500/20 text-center">
+                    <p class="text-[11px] text-slate-400">تفاعلات زملائك وتعليقاتهم يتم دمجها وحفظها محلياً لتسهيل نقاش الفريق.</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-950/30">
+
+            <!-- SECTION 1: OVERVIEW & PITCH STRATEGY -->
+            <section id="tab-overview" class="tab-content block space-y-8 animate-fade-in">
+                <div class="bg-gradient-to-r from-emerald-500/15 via-slate-950 to-indigo-500/10 p-6 sm:p-8 rounded-2xl border border-slate-900 relative overflow-hidden shadow-2xl">
+                    <div class="absolute top-0 right-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-3xl"></div>
+
+                    <div class="max-w-4xl space-y-4">
+                        <span class="bg-emerald-500/10 text-emerald-400 text-xs font-extrabold px-3.5 py-1.5 rounded-full border border-emerald-500/20 inline-block uppercase">استراتيجية الفوز الأكاديمية</span>
+                        <h2 class="text-3xl sm:text-4xl font-black text-white leading-tight">مشروع <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">SkillBridge 2.0</span>: الخيار الاعتمادي الأول للجامعات والعمل الحر</h2>
+                        <p class="text-slate-300 leading-relaxed text-sm sm:text-base">
+                            سوق العمل الطلابي مليء بالشكوك. العملاء يقلقون من الكفاءة، والطلاب يخشون ضياع مستحقاتهم، والجامعات تريد توثيق ساعات التدريب الميداني. **SkillBridge 2.0** يأتي ليحل هذه المشاكل بذكاء اصطناعي ونظام تحقق صارم ومسار تعليمي متكامل، ليتحول من موقع عمل حر عادي إلى **بنية تحتية موثوقة للتوظيف الأكاديمي**.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Three Pillars Design -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900 hover:border-emerald-500/25 transition">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 mb-4 text-base"><i class="fa-solid fa-graduation-cap"></i></div>
+                        <h3 class="font-bold text-white text-base">سد فجوات وتأهيل الطلاب</h3>
+                        <p class="text-xs text-slate-400 mt-2 leading-relaxed">تحويل السيرة الذاتية لدردشة تفاعلية ومقارنتها بسوق العمل وإخضاع الطالب لكويزات صارمة وترشيح كورسات لسد الفجوة.</p>
+                    </div>
+                    <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900 hover:border-sky-500/25 transition">
+                        <div class="w-10 h-10 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 mb-4 text-base"><i class="fa-solid fa-shield-halved"></i></div>
+                        <h3 class="font-bold text-white text-base">أمان مالي كامل وموثوقية</h3>
+                        <p class="text-xs text-slate-400 mt-2 leading-relaxed">حفظ أموال العملاء بنظام ضمان مالي، وتجميد مستحقات الطلاب بالتوازي لضمان الجودة، مع فحص صارم لهويات الطلاب الجامعية.</p>
+                    </div>
+                    <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900 hover:border-indigo-500/25 transition">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 mb-4 text-base"><i class="fa-solid fa-people-group"></i></div>
+                        <h3 class="font-bold text-white text-base">الفرق التلقائية الذكية</h3>
+                        <p class="text-xs text-slate-400 mt-2 leading-relaxed">تفتيت المشاريع الضخمة برمجياً وتشكيل فرق طلابية متجانسة آلياً بنسب أرباح عادلة وحل الفريق فور الإنجاز.</p>
+                    </div>
+                </div>
+
+                <!-- Collaborative Section Widget (Overview Feedback) -->
+                <div class="bg-slate-900/45 p-6 rounded-xl border border-slate-800">
+                    <h3 class="text-sm font-bold text-white mb-2"><i class="fa-solid fa-users-viewfinder text-emerald-400"></i> نقاش وتصويت الفريق حول الرؤية الإستراتيجية العامة</h3>
+                    <p class="text-xs text-slate-400 mb-4">هل تعتقد أن فكرة تحويل المنصة لبنية أكاديمية هي الاتجاه الأقوى للهاكاثون؟ شاركنا برأيك وصوتك!</p>
+                    <!-- Integration of Collaboration Component -->
+                    <div class="collaboration-box" data-section="overview_strategy"></div>
+                </div>
+            </section>
+
+            <!-- SECTION 2: CODE AUDITS & BUGS -->
+            <section id="tab-bugs" class="tab-content hidden space-y-8 animate-fade-in">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-2xl font-extrabold text-white">تقرير فحص وتدقيق أكواد مستودع SkillBridge الحالي</h2>
+                        <p class="text-xs text-slate-400 mt-1">اكتشفنا وعالجنا 3 مشاكل تقنية حاسمة في الكود المرفق لتأمين استقرار المنصة سحابياً بالكامل.</p>
+                    </div>
+                    <span class="bg-rose-500/10 text-rose-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-rose-500/20 flex items-center gap-1"><i class="fa-solid fa-bug-slash"></i> تم الكشف والعلاج</span>
+                </div>
+
+                <!-- Interactive Diagnostics Playground (Live Console) -->
+                <div class="bg-slate-950 rounded-xl border border-slate-850 p-5 space-y-4 shadow-2xl">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-900 pb-3">
+                        <div>
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-terminal text-emerald-400"></i> طرفية الفحص الذاتي النشطة (Diagnostics Terminal UI)</h3>
+                            <p class="text-xs text-slate-400">شغّل الفحص الذاتي التفاعلي لتتأكد من سلامة معالجة كود الـ Auth، واتصال قاعدة البيانات، وتكامل التوكن.</p>
+                        </div>
+                        <button onclick="runDiagnostics()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs font-mono transition shadow-lg shadow-emerald-500/10">
+                            sh run-diagnostics.sh
+                        </button>
+                    </div>
+
+                    <!-- Terminal Console Window -->
+                    <div class="bg-black/85 p-4 rounded-xl border border-slate-900 min-h-[160px] max-h-[220px] overflow-y-auto font-mono text-xs text-emerald-400 space-y-1" id="terminal-output">
+                        <p class="text-slate-500">> انقر على زر تشغيل الفحص البرمجي لبدء الاختبارات محاكاة حية...</p>
+                    </div>
+                </div>
+
+                <!-- Bug Cards -->
+                <div class="space-y-6">
+
+                    <!-- Bug 1 -->
+                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-4">
+                        <div class="flex justify-between items-start flex-wrap gap-2">
+                            <div>
+                                <span class="bg-rose-500/15 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/25">أمني حرج</span>
+                                <h3 class="font-bold text-white text-base mt-1.5">1. ثغرة الـ 401 وسقوط التوكن نتيجة حظر الكوكيز عابر النطاقات</h3>
+                            </div>
+                            <span class="text-xs text-slate-500 font-mono">http.ts / authApi.ts</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            كان الباكيند يرفض طلبات الاستدعاء نظراً لحظر كوكيز <code class="font-mono text-rose-400">HttpOnly</code> بين النطاقات المستضافة على Vercel و Azure. تم علاجها برمجياً بتحويل النظام لـ **Bearer JWT Flow**؛ حيث يتم حفظ التوكن في الـ <code class="font-mono text-emerald-400">localStorage</code> تلقائياً وتمريره برأس ترويسة الطلب.
+                        </p>
+                        <!-- Code comparison accordion -->
+                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-900 text-xs font-mono text-slate-400 space-y-2">
+                            <p class="text-emerald-400 font-bold border-b border-slate-900 pb-1.5">// كود التمرير والتعرف التلقائي بـ http.ts</p>
+                            <pre class="overflow-x-auto">if (typeof window !== "undefined") {
+  const token = localStorage.getItem("skillbridge_token");
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+}</pre>
+                        </div>
+                        <!-- Team Discussion for Bug 1 -->
+                        <div class="collaboration-box border-t border-slate-800/60 pt-4" data-section="bug_401_cookies"></div>
+                    </div>
+
+                    <!-- Bug 2 -->
+                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-4">
+                        <div class="flex justify-between items-start flex-wrap gap-2">
+                            <div>
+                                <span class="bg-amber-500/15 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-500/25">إعدادات بيئة العمل</span>
+                                <h3 class="font-bold text-white text-base mt-1.5">2. خطأ 404 في طلبات تسجيل الدخول على خوادم Azure الحية</h3>
+                            </div>
+                            <span class="text-xs text-slate-500 font-mono">NEXT_PUBLIC_API_URL Config</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            المشكلة أن المتغير البيئي على Vercel يُكتب بدون لاحقة <code class="font-mono">/api</code> مما يسبب تحويل رابط الاستدعاء إلى مسار غير مسجل بالباكيند. قمنا ببناء دالة معالجة تقوم بتصحيح وتأمين مسار الباكيند تلقائياً من الفرونت إند.
+                        </p>
+                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-900 text-xs font-mono text-slate-400">
+                            <p class="text-emerald-400 font-bold border-b border-slate-900 pb-1.5">// دالة تنظيف وتهيئة الرابط تلقائياً</p>
+                            <pre class="overflow-x-auto">const normalizeBaseUrl = (value) => {
+  let cleaned = value.replace(/\/+$/, "");
+  return cleaned.endsWith("/api") ? cleaned : `${cleaned}/api`;
+};</pre>
+                        </div>
+                        <!-- Team Discussion for Bug 2 -->
+                        <div class="collaboration-box border-t border-slate-800/60 pt-4" data-section="bug_404_azure"></div>
+                    </div>
+
+                    <!-- Bug 3 -->
+                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-4">
+                        <div class="flex justify-between items-start flex-wrap gap-2">
+                            <div>
+                                <span class="bg-rose-500/15 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/25">هجرة قاعدة البيانات</span>
+                                <h3 class="font-bold text-white text-base mt-1.5">3. تعطل وتوقف النشر بسبب تقييمات مكررة بجدول Reviews الحية</h3>
+                            </div>
+                            <span class="text-xs text-slate-500 font-mono">migrations / prechecks</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            محاولة تطبيق الفهرس الفريد <code class="font-mono text-rose-400">UNIQUE INDEX UX_Reviews_Reviewer_Reviewed_Project</code> تفشل فوراً وتتوقف الترقيات الأمنية إذا كانت البيانات القديمة تحتوي على أي تقييم مكرر. وفرنا سكريبت حماية يقوم بالتدقيق القبلي وحل النزاعات.
+                        </p>
+                        <!-- Team Discussion for Bug 3 -->
+                        <div class="collaboration-box border-t border-slate-800/60 pt-4" data-section="bug_reviews_migration"></div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- SECTION 3: SMART STUDENT AI JOURNEY -->
+            <section id="tab-journey" class="tab-content hidden space-y-8 animate-fade-in">
+                <div class="bg-gradient-to-r from-sky-500/15 to-indigo-500/10 p-6 rounded-xl border border-slate-900">
+                    <h2 class="text-2xl font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-sky-400"></i> ميزة التقييم الحواري التفاعلي واختبار المهارات بالـ AI</h2>
+                    <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                        نقلة نوعية في التوثيق: يتلقى الباكيند الـ CV ويقوم الذكاء الاصطناعي بتحليله، ثم يفتح شات حواري ذكي لمناقشة مهارات الطالب وإعطاء نسب دقيقة موثقة بكويزات واختبارات ليرى العميل تقييماً حقيقياً غير قابل للتزييف.
+                    </p>
+                </div>
+
+                <!-- Chat Simulation Panel -->
+                <div class="bg-slate-900 border border-slate-850 rounded-2xl p-5 space-y-4 shadow-xl">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-3 flex-wrap gap-2">
+                        <div>
+                            <h3 class="text-sm font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-robot text-sky-400"></i> محاكاة مقابلة التقييم بالذكاء الاصطناعي</h3>
+                            <p class="text-[10px] text-slate-400">قم بمحاكاة حية لاختبار معلومات الطالب، واكتب إجاباتك وشاهد كيف يحسب الـ AI الفجوة:</p>
+                        </div>
+                        <span class="bg-sky-500/10 text-sky-400 text-xs px-2.5 py-1.5 rounded-lg border border-sky-500/20 font-bold"><i class="fa-solid fa-play"></i> دردشة حية نشطة</span>
+                    </div>
+
+                    <!-- Conversation Container -->
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 max-h-[300px] overflow-y-auto space-y-4" id="assessment-chat-box">
+                        <div class="flex gap-3 max-w-[85%] animate-fade-in">
+                            <div class="w-8 h-8 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 font-bold shrink-0 text-xs">AI</div>
+                            <div class="bg-slate-900 p-3 rounded-2xl rounded-tr-none text-xs leading-relaxed text-slate-300">
+                                مرحباً بك! أرى في ملف الـ CV الخاص بك اهتماماً بمجال **Backend - SQL Server**. 
+                                كيف يمكننا تفادي تكرار البيانات وضمان سرعة جلب البيانات عند الاستعلام بجدول المراجعات؟
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input Bar -->
+                    <div class="flex gap-2 text-xs">
+                        <input type="text" id="assessment-input" placeholder="مثلاً: بإنشاء INDEX أو UNIQUE Constraint على الأعمدة..." class="flex-1 bg-slate-950 border border-slate-850 px-4 py-3 rounded-xl text-slate-100 focus:outline-none focus:border-sky-500 transition">
+                        <button onclick="sendAssessmentMessage()" class="bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5">
+                            <span>إرسال</span> <i class="fa-solid fa-paper-plane-rtl"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step details and Team feedback for CV & Assessment Feature -->
+                <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900 space-y-4">
+                    <h3 class="font-bold text-white text-base">لماذا ستكتسح هذه الميزة الـ Pitch؟</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        العملاء يكرهون البحث والمقابلات غير المجدية. عندما توفر لهم ميزة تقوم بـ "فلترة وتقييم واختبار" الطلاب آلياً قبل السماح لهم بالتقديم على المشاريع، فإنك تختصر 80% من الجهد على أصحاب العمل، وتضمن توظيف الطالب المؤهل فعلياً فقط.
+                    </p>
+                    <div class="collaboration-box border-t border-slate-800/60 pt-4" data-section="feature_ai_assessment"></div>
+                </div>
+            </section>
+
+            <!-- SECTION 4: NON-TRADITIONAL PORTFOLIO -->
+            <section id="tab-profile" class="tab-content hidden space-y-8 animate-fade-in">
+                <div class="bg-gradient-to-r from-indigo-500/15 to-emerald-500/10 p-6 rounded-xl border border-slate-900">
+                    <h2 class="text-2xl font-extrabold text-white">مولّد السيرة الذاتية التفاعلية للطالب (Live Trust Profile Generator)</h2>
+                    <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                        وداعاً للملفات الورقية الجامدة. قم بتعديل المدخلات بالأسفل وشاهد كيف تقوم لوحة تحكم الطالب الرقمية بتحديث مهاراتها ودرجات اختباراتها المحسوبة آلياً لتقديمها للعملاء بشكل موثق.
+                    </p>
+                </div>
+
+                <!-- Custom Profile Generator Workbench -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                    <!-- Editor Panel -->
+                    <div class="bg-slate-900 border border-slate-850 p-5 rounded-2xl space-y-4 lg:col-span-1">
+                        <h3 class="font-bold text-white text-sm border-b border-slate-800 pb-2"><i class="fa-solid fa-user-pen text-indigo-400"></i> محرّر بيانات الطالب حياً</h3>
+
+                        <div class="space-y-3 text-xs">
+                            <div class="space-y-1">
+                                <label class="text-slate-500 font-bold block">الاسم بالكامل:</label>
+                                <input type="text" id="prof-name" value="عمر محمود" class="w-full bg-slate-950 border border-slate-850 px-3 py-2 rounded-lg text-slate-200 focus:outline-none focus:border-indigo-500">
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-slate-500 font-bold block">الجامعة والتخصص:</label>
+                                <input type="text" id="prof-univ" value="جامعة عين شمس - هندسة البرمجيات" class="w-full bg-slate-950 border border-slate-850 px-3 py-2 rounded-lg text-slate-200 focus:outline-none focus:border-indigo-500">
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-slate-500 font-bold block">مستوى مهارة Backend - Node.js (%):</label>
+                                <input type="range" id="prof-skill-node" min="10" max="100" value="92" oninput="updateProfileLive()" class="w-full accent-indigo-500">
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-slate-500 font-bold block">مستوى مهارة Frontend - React.js (%):</label>
+                                <input type="range" id="prof-skill-react" min="10" max="100" value="85" oninput="updateProfileLive()" class="w-full accent-emerald-500">
+                            </div>
+
+                            <div class="space-y-1">
+                                <label class="text-slate-500 font-bold block">معدل الاختبارات الإجمالي:</label>
+                                <select id="prof-grade" onchange="updateProfileLive()" class="w-full bg-slate-950 border border-slate-850 px-3 py-2 rounded-lg text-slate-200 focus:outline-none">
+                                    <option value="A+">امتياز مع مرتبة الشرف (A+)</option>
+                                    <option value="A">امتياز (A)</option>
+                                    <option value="B">جيد جداً (B)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Real-Time Render Panel -->
+                    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col justify-between">
+                        <!-- Card Header -->
+                        <div class="bg-slate-900/80 px-6 py-5 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center font-black text-xl text-slate-950" id="live-avatar">
+                                    ع م
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-white text-base flex items-center gap-1.5">
+                                        <span id="live-name-display">عمر محمود</span>
+                                        <span class="bg-indigo-500/10 text-indigo-400 text-[9px] font-bold px-2 py-0.5 rounded border border-indigo-500/20"><i class="fa-solid fa-circle-check"></i> موثق بالهاكاثون</span>
+                                    </h4>
+                                    <p class="text-[11px] text-slate-400 mt-0.5" id="live-univ-display">جامعة عين شمس - هندسة البرمجيات</p>
+                                </div>
+                            </div>
+                            <span class="bg-emerald-500/10 text-emerald-400 text-xs font-mono font-bold px-3 py-1.5 rounded-lg border border-emerald-500/20" id="live-grade-display">المعدل: A+</span>
+                        </div>
+
+                        <!-- Card Body -->
+                        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                            <div class="space-y-4">
+                                <p class="font-bold text-white border-b border-slate-800 pb-1.5"><i class="fa-solid fa-circle-nodes text-indigo-400"></i> مهارات معتمدة بنظام الكويز الآلي</p>
+
+                                <div class="space-y-2">
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-300 font-semibold">Node.js API Development</span>
+                                        <span class="text-indigo-400 font-bold" id="live-node-num">92%</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-850">
+                                        <div id="live-node-bar" class="h-full bg-indigo-500 transition-all duration-300" style="width: 92%"></div>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-300 font-semibold">React Frontend Integration</span>
+                                        <span class="text-emerald-400 font-bold" id="live-react-num">85%</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-850">
+                                        <div id="live-react-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 85%"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                <p class="font-bold text-white border-b border-slate-800 pb-1.5"><i class="fa-solid fa-code text-emerald-400"></i> مؤشر جودة الأكواد (GitHub Verify)</p>
+                                <div class="p-3 bg-slate-950 rounded-xl border border-slate-850 font-mono text-[10px] text-slate-400">
+                                    <span class="text-slate-500">// AI Verified Function</span><br>
+                                    <span class="text-indigo-400">async function</span> <span class="text-emerald-400">connectToDatabase</span>() {<br>
+                                    &nbsp;&nbsp;await sql.connect(config);<br>
+                                    &nbsp;&nbsp;console.log(<span class="text-yellow-400">"[DB] Running Secure"</span>);<br>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Discussion Box for Profile Feature -->
+                <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900">
+                    <h3 class="font-bold text-white text-base mb-2">كيف يؤسس هذا الملف لمستويات غير مسبوقة من الموثوقية؟</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        بدلاً من ترك الخيار للعميل للمجازفة بتوظيف طلاب لا يعرف كفاءتهم، يستطيع العميل استعراض لوحة مهارات الطالب ودرجاته، مع القدرة على تفحص جودة الأكواد البرمجية مباشرة من الواجهة مما يختصر أي حاجة لفترة تجريبية.
+                    </p>
+                    <div class="collaboration-box border-t border-slate-800/60 pt-4" data-section="feature_trust_profile"></div>
+                </div>
+            </section>
+
+            <!-- SECTION 5: AI DYNAMIC SQUADS -->
+            <section id="tab-squads" class="tab-content hidden space-y-8 animate-fade-in">
+                <div class="bg-gradient-to-r from-purple-500/15 to-indigo-500/10 p-6 rounded-xl border border-slate-900">
+                    <h2 class="text-2xl font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-people-group text-purple-400"></i> تشكيل الفرق التلقائية وتتابع دعوة الاحتياطي (AI Squads Simulator)</h2>
+                    <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                        تحدي المشروعات الكبيرة يكمن في تعذر التسليم من الأفراد المستقلين. قمنا ببرمجة محاكي ذكي يوضح آلية تشكيل الفريق آلياً بالذكاء الاصطناعي بناءً على الميزانية والأدوار المطلوبة مع ضمان الاستقرار في حال رفض أحدهم العقد.
+                    </p>
+                </div>
+
+                <!-- Interactive Squad simulator widget -->
+                <div class="bg-slate-900 border border-slate-850 rounded-2xl p-6 space-y-6 shadow-2xl">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-3 flex-wrap gap-2">
+                        <div>
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-sliders text-purple-400"></i> محاكي تشكيل الفريق السحابي</h3>
+                            <p class="text-xs text-slate-400">اضبط مواصفات مشروع العميل لترى كيف يستخرج الـ AI الأدوار ويدعو البديل تلقائياً:</p>
+                        </div>
+                        <button onclick="runAdvancedSquadSimulation()" class="bg-purple-500 hover:bg-purple-600 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition shadow-lg shadow-purple-500/15">
+                            تشغيل المحاكاة السريعة
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs text-slate-300">
+
+                        <!-- Col 1: Config input -->
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
+                            <h4 class="font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-purple-400"></i> 1. مدخلات المشروع</h4>
+                            <div class="space-y-1">
+                                <label class="text-slate-500 font-bold block text-[10px]">ميزانية المشروع المقترحة:</label>
+                                <select id="squad-budget" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 font-semibold text-white">
+                                    <option value="15000">15,000 جنيه مصري</option>
+                                    <option value="30000">30,000 جنيه مصري</option>
+                                    <option value="50000">50,000 جنيه مصري</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-slate-500 font-bold block text-[10px]">مستوى حجم الفريق المطلوبة:</label>
+                                <select id="squad-size" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 font-semibold text-white">
+                                    <option value="3">فريق ثلاثي (Frontend, Backend, Designer)</option>
+                                    <option value="4">فريق رباعي (إضافة لمهندس فحص الجودة QA)</option>
+                                </select>
+                            </div>
+                            <div class="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg leading-relaxed">
+                                <strong>تفكيك المهام:</strong> يتولى الـ AI قراءة ملف المشروع لفرز الأدوار، ويوزع حصص الميزانية بالنسب المئوية تلقائياً ويجمدها بنظام الضمان لضمان سلامة التعامل.
+                            </div>
+                        </div>
+
+                        <!-- Col 2: Invitation Queue log -->
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
+                            <h4 class="font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-reply-all text-purple-400"></i> 2. سجل تتابع الدعوات ومواقف الرد</h4>
+                            <div class="space-y-2.5 font-semibold" id="squad-invitation-log">
+                                <p class="text-slate-500 text-center py-6">انتظر تشغيل محاكاة تشكيل الفريق لرؤية الطابور الذكي...</p>
+                            </div>
+                        </div>
+
+                        <!-- Col 3: Formed Team & Escrow lock -->
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
+                            <h4 class="font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-lock text-emerald-400"></i> 3. الفريق المعتمد والضمان المالي</h4>
+                            <div class="space-y-3" id="squad-final-team">
+                                <p class="text-slate-500 text-center py-6">سيتم تشكيل وتجميع الفريق هنا تلقائياً...</p>
+                            </div>
+                            <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg leading-relaxed" id="squad-escrow-alert" style="display:none;">
+                                <strong><i class="fa-solid fa-lock"></i> نظام الضمان المالي المدمج:</strong> تم تجميد ميزانية المشروع بأمان وصرف الدفعات مجزأة لكل طالب بنجاح فور تقييم التسليم وحل الفريق.
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Discussion Box for Squad Feature -->
+                <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900">
+                    <div class="collaboration-box" data-section="feature_ai_squads"></div>
+                </div>
+            </section>
+
+            <!-- SECTION 5: MICRO GIGS & SOCIAL -->
+            <section id="tab-gigs" class="tab-content hidden space-y-8 animate-fade-in">
+                <div class="bg-gradient-to-r from-yellow-500/15 via-slate-950 to-emerald-500/10 p-6 rounded-xl border border-slate-900 animate-fade-in">
+                    <h2 class="text-2xl font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-bolt text-yellow-400"></i> نظام المايكرو جيجز السريعة والشبكة الاجتماعية المدمجة</h2>
+                    <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+                        لكي نضمن تواجد وتفاعل الطلاب بالمنصة على مدار الساعة (Ecosystem Engagement)، طورنا نظامين متكاملين للتكامل المجتمعي: المايكرو جيجز لربح سريع وخبرة حقيقية، وشبكة اجتماعية لتبادل الآراء وتوثيق العلاقات.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+                    <!-- Micro Gigs -->
+                    <div class="bg-slate-900 border border-slate-850 p-6 rounded-2xl space-y-4">
+                        <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
+                            <div class="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-400 text-lg"><i class="fa-solid fa-cubes"></i></div>
+                            <div>
+                                <h3 class="font-bold text-white text-sm">المايكرو جيجز لعمل يومي مستمر</h3>
+                                <p class="text-xs text-slate-400">مشاريع صغيرة سريعة (ساعات قليلة) لضمان ربح مستمر للجميع:</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3.5 text-xs">
+                            <div class="p-3 bg-slate-950 rounded-xl border border-slate-850 space-y-1">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-white">مراجعة وتحسين تصميم واجهة (UI Feedback)</span>
+                                    <span class="bg-yellow-500/10 text-yellow-400 font-bold px-2 py-0.5 rounded border border-yellow-500/20">150 جنيه</span>
+                                </div>
+                                <p class="text-slate-400 leading-relaxed">فحص واجهة عيادة جديدة وتقديم تقرير من صفحتين عن تحسين تجربة الدفع.</p>
+                            </div>
+                            <div class="p-3 bg-slate-950 rounded-xl border border-slate-850 space-y-1">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-white">تدقيق الكود والبحث عن ثغرات أمنية (Bug Hunting)</span>
+                                    <span class="bg-yellow-500/10 text-yellow-400 font-bold px-2 py-0.5 rounded border border-yellow-500/20">350 جنيه</span>
+                                </div>
+                                <p class="text-slate-400 leading-relaxed">اختبار دالة تسجيل الدخول ومصادقة التوكنات على خادم العميل والتحقق من أمانها.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Social Network Feed -->
+                    <div class="bg-slate-900 border border-slate-850 p-6 rounded-2xl space-y-4">
+                        <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
+                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 text-lg"><i class="fa-solid fa-hashtag"></i></div>
+                            <div>
+                                <h3 class="font-bold text-white text-sm">الشبكة الاجتماعية والتفاعلية (LinkedIn الجامعات)</h3>
+                                <p class="text-xs text-slate-400">بناء مجتمع جامعي متكامل يشارك الأكواد ومستويات التقييم:</p>
+                            </div>
+                        </div>
+
+                        <!-- Single Post mockup -->
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3 text-xs leading-relaxed">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-full bg-emerald-500/25 flex items-center justify-center text-[10px] font-bold text-emerald-400">أ د</div>
+                                    <span class="font-bold text-white">أحمد دويدار (عميل معتمد)</span>
+                                </div>
+                                <span class="text-[10px] text-slate-500">منذ ساعة</span>
+                            </div>
+                            <p class="text-slate-300">
+                                سعيد جداً بتسليم مشروع العيادة اليوم بالتعاون مع فريق من 3 طلاب موثقين بالمنصة. جودة كود الـ API والسرعة والالتزام تفوق التوقعات! نظام الـ AI كوانتوم المتبع يفرز فعلاً أفضل النماذج.
+                            </p>
+                            <div class="flex items-center gap-4 text-slate-500 font-bold pt-2 border-t border-slate-900">
+                                <span class="text-emerald-400 cursor-pointer"><i class="fa-solid fa-thumbs-up"></i> 24 إعجاب</span>
+                                <span class="cursor-pointer"><i class="fa-solid fa-comment"></i> 5 تعليقات</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Discussion Box for Gigs -->
+                <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900">
+                    <div class="collaboration-box" data-section="feature_social_gigs"></div>
+                </div>
+            </section>
+
+            <!-- SECTION 6: PROACTIVE WINNING FEATURES -->
+            <section id="tab-proactive" class="tab-content hidden space-y-8 animate-fade-in">
+                <div class="bg-gradient-to-r from-emerald-500/15 via-slate-950 to-indigo-500/10 p-6 sm:p-8 rounded-2xl border border-slate-900 relative overflow-hidden shadow-2xl">
+                    <div class="absolute top-0 left-0 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl"></div>
+                    <div class="max-w-4xl space-y-3">
+                        <span class="bg-emerald-500/10 text-emerald-400 text-xs font-extrabold px-3 py-1 rounded-full border border-emerald-500/20 inline-block uppercase">أفكار الـ Pitch الحصرية للمركز الأول</span>
+                        <h2 class="text-2xl sm:text-3xl font-black text-white leading-tight">3 ميزات إستراتيجية إضافية تجعل لجنة التحكيم تختارنا دون تردد</h2>
+                        <p class="text-slate-300 leading-relaxed text-xs sm:text-sm">
+                            لكي نضمن الفوز الساحق، قمنا بصياغة 3 ميزات استباقية لم يتطرق إليها أي فريق منافس، تعزز الموثوقية وتدمج المنصة مع الحياة الأكاديمية والعملية بالكامل.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Proactive Features Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-300">
+
+                    <!-- Proactive Feature 1 -->
+                    <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-900 space-y-3 hover:border-emerald-500/25 transition">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 text-base"><i class="fa-solid fa-building-columns"></i></div>
+                        <h3 class="font-bold text-white text-sm">1. نظام اعتماد التدريب الميداني الجامعي (University Endorsement Loop)</h3>
+                        <p class="text-slate-400 leading-relaxed">
+                            تقوم الجامعات المصرية بطلب تدريب صيفي معتمد للطلاب كقيد للتخرج. قمنا بدمج دورة عمل مخصصة لأساتذة الجامعات (Academic Supervisors)؛ حيث يرسل الطالب مشروعه المنجز في المنصة للأستاذ لمراجعته، ليقوم الأستاذ باعتماده وتوثيقه كـ **ساعات تدريب صيفي معتمدة** برقم تسلسلي موحد من المنصة!
+                        </p>
+                    </div>
+
+                    <!-- Proactive Feature 2 -->
+                    <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-900 space-y-3 hover:border-sky-500/25 transition">
+                        <div class="w-10 h-10 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 text-base"><i class="fa-solid fa-file-signature"></i></div>
+                        <h3 class="font-bold text-white text-sm">2. مولّد العقود الذكية بالذكاء الاصطناعي (AI SLA Contract Generator)</h3>
+                        <p class="text-slate-400 leading-relaxed">
+                            لحماية متبادلة للحقوق، قمنا بإعداد ميزة تقوم تلقائياً بصياغة عقد عمل قانوني مبسط باللغة العربية (SLA) يغطي: بنود الملكية الفكرية للكود، مواعيد التسليم والنسب، وشروط NDA الحساسة، بالاعتماد على ميزانية المشروع وحجم الفريق، ليوثق العقد بضغطة موافقة من الطرفين قبل الدفع.
+                        </p>
+                    </div>
+
+                    <!-- Proactive Feature 3 -->
+                    <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-900 space-y-3 hover:border-indigo-500/25 transition">
+                        <div class="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 text-base"><i class="fa-solid fa-trophy"></i></div>
+                        <h3 class="font-bold text-white text-sm">3. لوحة الصدارة والأوسمة التنافسية (Gamified XP & Leaderboard)</h3>
+                        <p class="text-slate-400 leading-relaxed">
+                            تحفيز الطلاب على التعلم والتوثيق المستمر بربط الكويزات وحل المايكرو جيجز بنظام خبرة (XP) وشارات تظهر بملف الطالب (مثل: خبير كود نظيف، بطل السرعة، منقذ السيرفر). يتم فرز الطلاب في لوحة صدارة تظهر على الصفحة الرئيسية، مما يعزز المنافسة اليومية والنشاط.
+                        </p>
+                    </div>
+
+                </div>
+
+                <!-- Discussion Box for Proactive Features -->
+                <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900">
+                    <div class="collaboration-box" data-section="proactive_winning_features"></div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- System Footer -->
+    <footer class="border-t border-slate-900 bg-slate-950 px-6 py-4 text-center text-xs text-slate-500">
+        <p>© 2026 بوابة نقاش وجلسات عمل مشروع SkillBridge 2.0. تم التطوير بهيكلية تفاعلية متماسكة لضمان المركز الأول.</p>
+    </footer>
+
+    <!-- Persistent Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>

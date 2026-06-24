@@ -1,0 +1,41 @@
+/* CSS Animations & Interactive States */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.25s ease-out forwards;
+}
+
+.nav-btn {
+    cursor: pointer;
+    border-right: 4px solid transparent;
+}
+
+.nav-btn.active {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    border-left: 4px solid #10b981;
+}
+
+[dir="rtl"] .nav-btn.active {
+    border-left: none;
+    border-right: 4px solid #10b981;
+}
+
+.vote-btn-active {
+    background-color: rgba(16, 185, 129, 0.15) !important;
+    border-color: #10b981 !important;
+}
+
+.vote-btn-disactive {
+    background-color: rgba(244, 63, 94, 0.15) !important;
+    border-color: #f43f5e !important;
+}
