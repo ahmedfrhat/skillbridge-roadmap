@@ -1,18 +1,65 @@
 // --- GLOBAL PERSISTENT STATE MANAGEMENT (LOCAL STORAGE) ---
 let sb_votes = {};
 let sb_comments = {};
+let sb_social_posts = [];
+let sb_social_follows = {};
+let sb_leaderboard_xp = {};
+
+// Default initial records if empty
+const defaultPosts = [
+    {
+        id: "post_1",
+        author: "أحمد دويدار (عميل معتمد)",
+        text: "لقد أنهينا للتو مشروع تطبيق العيادات الطبية بالتعاون مع فريق من 3 طلاب من هندسة عين شمس، تفاجأت بمدى نظافة الكود البرمجي وسرعة التنسيق والالتزام بالمواعيد! المنصة تضمن الجودة بشكل مذهل عبر كويزاتها.",
+        likes: 24,
+        hasLiked: false,
+        timestamp: "منذ ساعة",
+        avatar: "أ د"
+    },
+    {
+        id: "post_2",
+        author: "سارة شريف (طالبة برمجيات)",
+        text: "تمت ترقية مستواي في React إلى خبير بعد حل الكويز الأخير بالمنصة. التقييم الحواري التفاعلي بالـ AI ممتاز جداً ورشح لي ثغرات حقيقية لم أكن منتبهة لها في أكوادي السابقة!",
+        likes: 12,
+        hasLiked: false,
+        timestamp: "منذ 4 ساعات",
+        avatar: "س ش"
+    }
+];
+
+const defaultLeaderboard = [
+    { id: "student_1", name: "عمر محمود", university: "جامعة عين شمس", skill: "Backend Developer", xp: 1250, badge: "خبير كود نظيف 🛡️" },
+    { id: "student_2", name: "سارة شريف", university: "جامعة القاهرة", skill: "React Specialist", xp: 1100, badge: "بطل السرعة ⚡" },
+    { id: "student_3", name: "ماجد يوسف", university: "جامعة الإسكندرية", skill: "UI/UX Designer", xp: 950, badge: "منقذ السيرفر 🖥️" }
+];
 
 // Load saved data from localStorage on initialization
 function loadPersistentState() {
     try {
         const votesData = localStorage.getItem('skillbridge_votes');
-        if (votesData) {
-            sb_votes = JSON.parse(votesData);
-        }
+        if (votesData) sb_votes = JSON.parse(votesData);
 
         const commentsData = localStorage.getItem('skillbridge_comments');
-        if (commentsData) {
-            sb_comments = JSON.parse(commentsData);
+        if (commentsData) sb_comments = JSON.parse(commentsData);
+
+        const postsData = localStorage.getItem('skillbridge_posts');
+        if (postsData) {
+            sb_social_posts = JSON.parse(postsData);
+        } else {
+            sb_social_posts = defaultPosts;
+        }
+
+        const followsData = localStorage.getItem('skillbridge_follows');
+        if (followsData) sb_social_follows = JSON.parse(followsData);
+
+        const xpData = localStorage.getItem('skillbridge_xp');
+        if (xpData) {
+            sb_leaderboard_xp = JSON.parse(xpData);
+        } else {
+            defaultLeaderboard.forEach(st => {
+                sb_leaderboard_xp[st.id] = st.xp;
+            });
+            sb_leaderboard_xp = sb_leaderboard_xp;
         }
     } catch (e) {
         console.error("Could not load from localStorage: ", e);
@@ -24,6 +71,9 @@ function savePersistentState() {
     try {
         localStorage.setItem('skillbridge_votes', JSON.stringify(sb_votes));
         localStorage.setItem('skillbridge_comments', JSON.stringify(sb_comments));
+        localStorage.setItem('skillbridge_posts', JSON.stringify(sb_social_posts));
+        localStorage.setItem('skillbridge_follows', JSON.stringify(sb_social_follows));
+        localStorage.setItem('skillbridge_xp', JSON.stringify(sb_leaderboard_xp));
         calculateGlobalApproval();
     } catch (e) {
         console.error("Could not save to localStorage: ", e);
@@ -32,20 +82,35 @@ function savePersistentState() {
 
 // Clear all local database records
 function clearAllData() {
-    if (confirm("هل أنت متأكد من رغبتك في حذف جميع التعليقات والتصويتات وإعادة تهيئة الصفحة؟")) {
-        localStorage.removeItem('skillbridge_votes');
-        localStorage.removeItem('skillbridge_comments');
-        sb_votes = {};
-        sb_comments = {};
-        loadPersistentState();
-        renderAllCollaborationWidgets();
-        calculateGlobalApproval();
+    if (confirm("هل أنت متأكد من رغبتك في حذف جميع التعليقات والتصويتات والتفاعلات وإعادة تهيئة الصفحة؟")) {
+        localStorage.clear();
         alert("تمت إعادة تهيئة البيانات بنجاح!");
         window.location.reload();
     }
 }
 
-// Generate the collaborative voting and comment HTML component dynamically
+
+// --- REAL-TIME NOTIFICATIONS POPUP BELL ---
+function toggleNotifications() {
+    const notifDropdown = document.getElementById('notif-dropdown');
+    if (notifDropdown) {
+        notifDropdown.classList.toggle('active');
+    }
+}
+
+function markAllNotificationsRead() {
+    const badge = document.getElementById('notif-badge');
+    if (badge) {
+        badge.style.display = 'none';
+    }
+    const notifList = document.getElementById('notif-list');
+    if (notifList) {
+        notifList.innerHTML = `<p class="text-slate-500 italic text-center py-4">لا توجد تنبيهات جديدة غير مقروءة...</p>`;
+    }
+}
+
+
+// --- DYNAMIC AI COLLABORATION COMPONENT ---
 function renderAllCollaborationWidgets() {
     const containers = document.querySelectorAll('.collaboration-box');
     containers.forEach(el => {
@@ -158,7 +223,6 @@ function submitComment(sectionId) {
     savePersistentState();
     renderAllCollaborationWidgets();
 
-    // Reset input text only
     textEl.value = "";
 }
 
@@ -186,6 +250,215 @@ function calculateGlobalApproval() {
     const approvalPercent = Math.round((totalYes / totalVotes) * 100);
     rateEl.innerText = `${approvalPercent}%`;
     barEl.style.height = `${approvalPercent}%`;
+}
+
+
+// --- FULLY INTERACTIVE SOCIAL FEED HUB (GIGS & SOCIAL TAB) ---
+function renderSocialFeed() {
+    const container = document.getElementById('social-feed-container');
+    if (!container) return;
+
+    container.innerHTML = sb_social_posts.map(post => {
+        const isFollowed = sb_social_follows[post.author] || false;
+        const followText = isFollowed ? "إلغاء المتابعة" : "متابعة";
+        const followClass = isFollowed ? "bg-slate-800 text-slate-400 border-slate-700" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        const likeClass = post.hasLiked ? "text-emerald-400 font-extrabold" : "text-slate-500";
+
+        return `
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3 text-xs leading-relaxed animate-fade-in shadow-md">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-[10px] font-bold text-indigo-400 shrink-0">
+                            ${escapeHTML(post.avatar || "ط")}
+                        </div>
+                        <div>
+                            <span class="font-bold text-white">${escapeHTML(post.author)}</span>
+                            <span class="text-[9px] text-slate-500 block">${post.timestamp}</span>
+                        </div>
+                    </div>
+                    <!-- Interactive Follow / Unfollow Badge -->
+                    <button onclick="toggleFollowAuthor('${escapeHTML(post.author)}')" class="px-2.5 py-1 rounded border text-[10px] font-bold transition duration-200 cursor-pointer ${followClass}">
+                        <i class="fa-solid ${isFollowed ? 'fa-user-minus' : 'fa-user-plus'} ml-1"></i> ${followText}
+                    </button>
+                </div>
+                <p class="text-slate-300">${escapeHTML(post.text)}</p>
+                <div class="flex items-center gap-4 text-[11px] font-bold pt-2 border-t border-slate-900/60">
+                    <!-- Interactive Like Toggle -->
+                    <button onclick="toggleLikePost('${post.id}')" class="cursor-pointer transition duration-200 flex items-center gap-1 ${likeClass}">
+                        <i class="fa-solid fa-thumbs-up"></i> <span>${post.likes} إعجاب</span>
+                    </button>
+                    <span class="text-slate-500 cursor-pointer hover:text-slate-400"><i class="fa-solid fa-comment"></i> تعليق</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Post a status dynamically
+function submitNewPost() {
+    const textEl = document.getElementById('comment-text-post_status'); // Input inside social feed
+    const authorEl = document.getElementById('comment-author-post_status');
+    const inputVal = textEl ? textEl.value.trim() : '';
+    const authorVal = (authorEl ? authorEl.value.trim() : '') || "أحمد فرهات (أنت)";
+
+    if (!textEl || !textEl.value.trim()) {
+        const genericInput = document.getElementById('social-input');
+        if (genericInput && genericInput.value.trim()) {
+            submitNewPostGeneric(genericInput.value.trim());
+            genericInput.value = "";
+        } else {
+            alert("يرجى كتابة منشورك أولاً!");
+        }
+        return;
+    }
+
+    const newPost = {
+        id: 'post_' + Date.now(),
+        author: author,
+        text: text,
+        timestamp: "منذ ثوانٍ",
+        likes: 0,
+        liked: false
+    };
+
+    sb_social_posts.unshift(newPost);
+    savePersistentState();
+    renderSocialFeed();
+}
+
+// Fast status submit from box
+function submitSocialPost() {
+    const authorEl = document.getElementById('social-post-author');
+    const textEl = document.getElementById('social-post-text');
+    if (!textEl || !textEl.value.trim()) {
+        alert("يرجى كتابة نص المنشور!");
+        return;
+    }
+
+    const author = (authorEl ? authorEl.value.trim() : "") || "أحمد فرهات (أنت)";
+    const text = textEl.value.trim();
+    const initials = author.split(' ').map(n => n[0]).slice(0, 2).join('');
+
+    const newPost = {
+        id: 'post_' + Date.now(),
+        author: author,
+        text: text,
+        timestamp: "منذ ثوانٍ",
+        likes: 0,
+        hasLiked: false,
+        avatar: initials || "أ"
+    };
+
+    sb_social_posts.unshift(newPost);
+    localStorage.setItem('skillbridge_posts', JSON.stringify(sb_social_posts));
+    renderSocialFeed();
+
+    textEl.value = "";
+}
+
+// Toggle Like
+function toggleLikePost(postId) {
+    const post = sb_social_posts.find(p => p.id === postId);
+    if (!post) return;
+
+    if (post.hasLiked) {
+        post.likes--;
+        post.hasLiked = false;
+    } else {
+        post.likes++;
+        post.hasLiked = true;
+    }
+
+    localStorage.setItem('skillbridge_posts', JSON.stringify(sb_social_posts));
+    renderSocialFeed();
+}
+
+// Toggle Follow/Unfollow
+function toggleFollowAuthor(authorName) {
+    sb_social_follows[authorName] = !sb_social_follows[authorName];
+    localStorage.setItem('skillbridge_follows', JSON.stringify(sb_social_follows));
+    renderSocialFeed();
+
+    // Add real-time notification
+    if (sb_social_follows[authorName]) {
+        addLiveNotification(`📈 قمت الآن بمتابعة حساب العضو <strong>${authorName}</strong> بنجاح.`);
+    }
+}
+
+// Add system notifications dynamically
+function addLiveNotification(text) {
+    const notifDropdown = document.getElementById('notif-list');
+    const badge = document.getElementById('notif-badge');
+    if (!notifDropdown) return;
+
+    if (badge) {
+        badge.style.display = 'flex';
+        let count = parseInt(badge.innerText) || 0;
+        badge.innerText = count + 1;
+    }
+
+    const html = `
+        <div class="p-2 bg-slate-950 rounded-lg border border-slate-850 flex gap-2.5 items-start animate-fade-in">
+            <span class="text-indigo-400 mt-0.5"><i class="fa-solid fa-plus-circle"></i></span>
+            <p class="text-slate-300 leading-relaxed">${text}</p>
+        </div>
+    `;
+    notifDropdown.insertAdjacentHTML('afterbegin', html);
+}
+
+
+// --- INTERACTIVE GAMIFIED LEADERBOARD (PROACTIVE TAB) ---
+function renderLeaderboard() {
+    const container = document.getElementById('leaderboard-container');
+    if (!container) return;
+
+    container.innerHTML = defaultLeaderboard.map(student => {
+        const currentXp = sb_leaderboard_xp[student.id] || student.xp;
+        const percent = Math.min(100, Math.round((currentXp / 1500) * 100));
+
+        return `
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 flex flex-col justify-between space-y-3 shadow-md animate-fade-in">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h4 class="font-bold text-white text-xs">${student.name}</h4>
+                        <p class="text-[10px] text-slate-400 mt-0.5">${student.university} | ${student.skill}</p>
+                    </div>
+                    <span class="bg-indigo-500/10 text-indigo-400 font-bold px-1.5 py-0.5 rounded text-[9px] border border-indigo-500/20">${student.badge}</span>
+                </div>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-slate-500 font-bold">مستوى الخبرة:</span>
+                        <span class="text-indigo-400 font-bold font-mono">${currentXp} XP</span>
+                    </div>
+                    <div class="w-full h-1 bg-slate-900 rounded-full overflow-hidden border border-slate-850">
+                        <div class="h-full bg-indigo-500 rounded-full" style="width: ${percent}%"></div>
+                    </div>
+                </div>
+
+                <!-- Endorse button -->
+                <button onclick="endorseStudent('${student.id}')" class="bg-indigo-600/20 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-bold transition duration-200 cursor-pointer">
+                    <i class="fa-solid fa-medal ml-1"></i> توصية المهارة (+50 XP)
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+function endorseStudent(studentId) {
+    if (!sb_leaderboard_xp[studentId]) {
+        const st = defaultLeaderboard.find(s => s.id === studentId);
+        sb_leaderboard_xp[studentId] = st ? st.xp : 1000;
+    }
+
+    sb_leaderboard_xp[studentId] += 50;
+    localStorage.setItem('skillbridge_xp', JSON.stringify(sb_leaderboard_xp));
+    renderLeaderboard();
+
+    const student = defaultLeaderboard.find(s => s.id === studentId);
+    if (student) {
+        addLiveNotification(`🎖️ قمت بالتصديق وتوصية مهارات <strong>${student.name}</strong>. تم إضافة +50 XP لملفه الشخصي.`);
+    }
 }
 
 
@@ -263,16 +536,13 @@ function updateProfileLive() {
 
     if (!nameInput || !univInput || !skillNodeInput || !skillReactInput || !gradeSelect) return;
 
-    // Display Name and University
     const nameVal = nameInput.value.trim() || "اسم الطالب";
     nameDisp.innerText = nameVal;
     univDisp.innerText = univInput.value.trim() || "جامعة عين شمس";
 
-    // Set Avatar initials
     const initials = nameVal.split(' ').map(n => n[0]).slice(0, 2).join('');
     avatar.innerText = initials || "ط";
 
-    // Update Sliders and progress bars
     const nodeVal = skillNodeInput.value;
     nodeNum.innerText = nodeVal + "%";
     nodeBar.style.width = nodeVal + "%";
@@ -281,7 +551,6 @@ function updateProfileLive() {
     reactNum.innerText = reactVal + "%";
     reactBar.style.width = reactVal + "%";
 
-    // Update Select Grades
     gradeDisp.innerText = "المعدل: " + gradeSelect.value;
 }
 
@@ -296,7 +565,6 @@ function sendAssessmentMessage() {
     const userText = input.value.trim();
     input.value = "";
 
-    // Render User Message
     chatBox.insertAdjacentHTML('beforeend', `
         <div class="flex gap-3 max-w-[85%] mr-auto flex-row-reverse animate-fade-in">
             <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 text-xs font-bold">أنت</div>
@@ -307,7 +575,6 @@ function sendAssessmentMessage() {
     `);
     chatBox.scrollTop = chatBox.scrollHeight;
 
-    // AI Simulated logic-driven replies
     setTimeout(() => {
         let aiText = "";
         if (assessmentMsgIndex === 0) {
@@ -353,7 +620,6 @@ function runAdvancedSquadSimulation() {
     teamContainer.innerHTML = `<p class="text-slate-500 text-center py-6">جاري تشكيل فريق سحابي...</p>`;
     escrowAlert.style.display = 'none';
 
-    // Step 1: Designer Invitation rejected
     setTimeout(() => {
         logContainer.innerHTML = `
             <div class="p-2.5 bg-slate-900 rounded border border-slate-850 flex justify-between items-center text-rose-400 animate-fade-in">
@@ -363,7 +629,6 @@ function runAdvancedSquadSimulation() {
         `;
     }, 800);
 
-    // Step 2: Auto-substitute alternate
     setTimeout(() => {
         logContainer.insertAdjacentHTML('beforeend', `
             <div class="p-2.5 bg-slate-900 rounded border border-slate-850 flex justify-between items-center text-emerald-400 animate-fade-in">
@@ -373,7 +638,6 @@ function runAdvancedSquadSimulation() {
         `);
     }, 1800);
 
-    // Step 3: Developer Acceptances
     setTimeout(() => {
         logContainer.insertAdjacentHTML('beforeend', `
             <div class="p-2.5 bg-slate-900 rounded border border-slate-850 flex justify-between items-center text-emerald-400 animate-fade-in">
@@ -392,7 +656,6 @@ function runAdvancedSquadSimulation() {
         `);
     }, 3600);
 
-    // If team size is 4, include QA engineer
     if (size === 4) {
         setTimeout(() => {
             logContainer.insertAdjacentHTML('beforeend', `
@@ -404,7 +667,6 @@ function runAdvancedSquadSimulation() {
         }, 4400);
     }
 
-    // Compile Team and Lock Escrow
     const finalDelay = size === 4 ? 5200 : 4200;
     setTimeout(() => {
         let budgetBreakdown = "";
@@ -438,15 +700,15 @@ function runAdvancedSquadSimulation() {
                     <span class="text-emerald-400 font-bold font-mono">${Math.round(budget * 0.30)} جنيه</span>
                 </p>
                 <p class="flex justify-between text-slate-300">
-                    <span>يمنى يحيى (فحص جودة QA)</span>
-                    <span class="text-emerald-400 font-bold font-mono">${Math.round(budget * 0.15)} جنيه</span>
+                    <span>يمنى يحيى (جودة)</span>
+                    <span class="text-emerald-400 font-mono">${Math.round(budget * 0.15)} جنيه</span>
                 </p>
             `;
         }
 
         teamContainer.innerHTML = `
-            <div class="bg-slate-900/80 p-4 rounded-xl border border-emerald-500/25 space-y-3 animate-fade-in text-xs">
-                <p class="font-bold text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-users"></i> تم اعتماد وتشكيل الفريق السحابي!</p>
+            <div class="bg-slate-900 p-3.5 rounded-xl border border-emerald-500/20 text-xs space-y-3 animate-fade-in">
+                <p class="font-bold text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-users"></i> تم تشكيل الفريق التلقائي بنجاح!</p>
                 <div class="space-y-2">
                     ${budgetBreakdown}
                 </div>
@@ -463,4 +725,6 @@ window.onload = function() {
     renderAllCollaborationWidgets();
     calculateGlobalApproval();
     updateProfileLive();
+    renderSocialFeed();
+    renderLeaderboard();
 };
