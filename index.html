@@ -3,461 +3,548 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>بوابة تخطيط وجلسات العمل - SkillBridge 2.0</title>
-    <!-- Tailwind CSS (standard build via unpkg for modern layouts) -->
+    <title>SkillBridge 2.0 – بوابة التخطيط التشاركي</title>
+    <meta name="description" content="بوابة التخطيط والنقاش التشاركي لفريق هاكاثون SkillBridge 2.0 – تصويت وتعليقات مباشرة بين أعضاء الفريق">
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
-    <!-- Google Fonts: Cairo & Fira Code (for terminal feel) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    <!-- FontAwesome for interactive icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase v9 Compat (for real-time sync across all team members) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="styles.css">
     <style>
-        body {
-            font-family: 'Cairo', sans-serif;
-        }
-        .code-font {
-            font-family: 'Fira Code', 'Courier New', monospace;
-        }
-        /* Custom scrollbar styles */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #020617;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #1e293b;
-            border-radius: 6px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #334155;
-        }
-        /* Dropdown custom transitions */
-        .notification-dropdown {
-            display: none;
-        }
-        .notification-dropdown.active {
-            display: block;
-            animation: dropdownFade 0.2s ease-out forwards;
-        }
-        @keyframes dropdownFade {
-            from { opacity: 0; transform: translateY(-8px); }
+        * { box-sizing: border-box; }
+        body { font-family: 'Cairo', sans-serif; }
+        .code-font { font-family: 'Fira Code', monospace; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .notification-dropdown { display: none; }
+        .notification-dropdown.active { display: block; animation: dropFade 0.2s ease-out; }
+
+        @keyframes dropFade {
+            from { opacity: 0; transform: translateY(-6px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Sidebar overlay for mobile */
+        #sidebar-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 40;
+        }
+        #sidebar-overlay.active { display: block; }
+
+        /* Glass card */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+        }
+
+        /* Sync status pulse */
+        .sync-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: syncPulse 2s ease-in-out infinite;
+        }
+        .sync-dot.offline { background: #f43f5e; animation: none; }
+
+        @keyframes syncPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
         }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased">
 
-    <!-- Active Top Planning Alert / Health Bar -->
-    <div class="bg-gradient-to-r from-emerald-600 via-teal-900 to-indigo-900 text-white px-6 py-2 flex flex-col sm:flex-row justify-between items-center gap-2 text-xs border-b border-emerald-500/20 shadow-md">
-        <div class="flex items-center gap-2 font-bold">
-            <span class="bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full text-[10px] animate-pulse">لوحة نشطة</span>
-            <span><i class="fa-solid fa-people-group"></i> جلسة عمل تفاعلية لفريق الهاكاثون (4 أعضاء)</span>
+<body class="bg-[#080f1e] text-slate-100 min-h-screen flex flex-col">
+
+    <!-- ══════════════════════════════════════════
+         TOP ANNOUNCEMENT BANNER
+    ══════════════════════════════════════════ -->
+    <div class="bg-gradient-to-r from-emerald-600/90 via-teal-700/80 to-indigo-700/90 text-white px-5 py-2 flex justify-between items-center gap-2 text-xs border-b border-white/10 shrink-0">
+        <div class="flex items-center gap-2.5 font-bold">
+            <span class="flex items-center gap-1.5 bg-emerald-400/20 text-emerald-200 px-2.5 py-0.5 rounded-full text-[10px] border border-emerald-400/30">
+                <span class="sync-dot" id="sync-indicator"></span>
+                <span id="sync-status-text">جاري الاتصال...</span>
+            </span>
+            <span class="hidden sm:inline text-white/80"><i class="fa-solid fa-people-group ml-1"></i>جلسة تخطيط فريق SkillBridge الهاكاثون (4 أعضاء)</span>
         </div>
-        <div class="flex items-center gap-4">
-            <span class="hidden md:inline"><i class="fa-solid fa-clock-rotate-left"></i> التغييرات والتصويتات والتعليقات تُحفظ تلقائياً في المتصفح</span>
-            <button onclick="clearAllData()" class="bg-slate-950/40 hover:bg-slate-950/65 px-2.5 py-1 rounded border border-white/10 text-[10px] font-semibold transition">
-                <i class="fa-solid fa-trash-can"></i> إعادة تهيئة البيانات
+        <div class="flex items-center gap-3">
+            <span class="hidden md:flex items-center gap-1.5 text-white/70">
+                <i class="fa-solid fa-cloud text-emerald-300"></i>
+                التصويتات والتعليقات مزامنة حية عبر Firebase
+            </span>
+            <button onclick="clearAllData()" class="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg border border-white/15 text-[10px] font-bold transition">
+                <i class="fa-solid fa-arrow-rotate-left"></i> إعادة تهيئة
             </button>
         </div>
     </div>
 
-    <!-- Main Header -->
-    <header class="border-b border-slate-900 bg-slate-950/80 backdrop-blur sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-            <div class="bg-emerald-500 text-slate-950 w-11 h-11 rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl shadow-emerald-500/15">
-                <i class="fa-solid fa-diagram-project"></i>
+    <!-- ══════════════════════════════════════════
+         MAIN HEADER
+    ══════════════════════════════════════════ -->
+    <header class="sticky top-0 z-50 border-b border-slate-800/80 bg-[#080f1e]/90 backdrop-blur-xl px-5 py-3.5 flex items-center justify-between gap-4 shrink-0">
+        <!-- Logo + Title -->
+        <div class="flex items-center gap-3.5">
+            <!-- Mobile menu toggle -->
+            <button id="sidebar-toggle" class="lg:hidden text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-800" onclick="toggleSidebar()">
+                <i class="fa-solid fa-bars text-base"></i>
+            </button>
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+                <i class="fa-solid fa-diagram-project text-slate-950 text-base"></i>
             </div>
             <div>
-                <h1 class="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-                    SkillBridge <span class="bg-emerald-500/15 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30 font-extrabold">منصة الهاكاثون المعتمدة 2.0</span>
-                </h1>
-                <p class="text-xs text-slate-400">بوابة التخطيط، فحص الأكواد، التصويت التشاركي، والميزات التفاعلية الفائزة</p>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-base font-black text-white tracking-tight">SkillBridge</h1>
+                    <span class="hidden sm:inline bg-emerald-500/15 text-emerald-400 text-[9px] px-2 py-0.5 rounded-full border border-emerald-500/25 font-bold uppercase tracking-wider">v2.0 Hackathon</span>
+                </div>
+                <p class="text-[10px] text-slate-500 hidden sm:block">بوابة التخطيط التشاركي – التصويت والنقاش الجماعي</p>
             </div>
         </div>
 
-        <!-- Live Planning Stats Panel & Bell Notification -->
-        <div class="flex items-center gap-4 text-xs">
-
-            <!-- Dynamic Notification Bell -->
-            <div class="relative">
-                <button onclick="toggleNotifications()" class="relative bg-slate-900 hover:bg-slate-850 p-2.5 rounded-xl border border-slate-800 text-slate-300 hover:text-white transition duration-200">
-                    <i class="fa-solid fa-bell text-sm"></i>
-                    <span id="notif-badge" class="absolute -top-1.5 -right-1.5 bg-rose-500 text-white font-bold w-5 h-5 rounded-full text-[9px] flex items-center justify-center border-2 border-slate-950">3</span>
-                </button>
-
-                <!-- Notification Dropdown Menu -->
-                <div id="notif-dropdown" class="notification-dropdown absolute left-0 sm:right-0 mt-3 w-72 sm:w-80 bg-slate-900 border border-slate-850 rounded-2xl shadow-2xl p-4 space-y-3 z-50">
-                    <div class="flex justify-between items-center border-b border-slate-850 pb-2">
-                        <span class="font-bold text-white text-xs">تنبيهات النظام الحية (AI Logs)</span>
-                        <button onclick="markAllNotificationsRead()" class="text-[9px] text-emerald-400 font-bold hover:underline">تحديد كمقروء</button>
-                    </div>
-                    <div class="space-y-2.5 max-h-[220px] overflow-y-auto pr-1 text-[11px]" id="notif-list">
-                        <div class="p-2 bg-slate-950 rounded-lg border border-slate-850 flex gap-2.5 items-start">
-                            <span class="text-emerald-400 mt-0.5"><i class="fa-solid fa-circle-check"></i></span>
-                            <p class="text-slate-300 leading-relaxed">
-                                <strong>الذكاء الاصطناعي:</strong> تم مطابقة ملفك وحسابك وتوجيه دعوة انضمام لك لـ <strong>فريق العيادات الطبية</strong>.
-                            </p>
-                        </div>
-                        <div class="p-2 bg-slate-950 rounded-lg border border-slate-850 flex gap-2.5 items-start">
-                            <span class="text-indigo-400 mt-0.5"><i class="fa-solid fa-award"></i></span>
-                            <p class="text-slate-300 leading-relaxed">
-                                <strong>تحديث التقييم:</strong> قمت باجتياز اختبار كود Node.js بنجاح وحصلت على وسام <strong>Verified Node Dev</strong> بنسبة 92%.
-                            </p>
-                        </div>
-                        <div class="p-2 bg-slate-950 rounded-lg border border-slate-850 flex gap-2.5 items-start">
-                            <span class="text-yellow-400 mt-0.5"><i class="fa-solid fa-coins"></i></span>
-                            <p class="text-slate-300 leading-relaxed">
-                                <strong>المحفظة الذكية:</strong> قام العميل "أحمد دويدار" بتحويل دفعة الضمان المالي <strong>(150 جنيه)</strong> لحسابك فور تسليم المايكرو جيج.
-                            </p>
-                        </div>
-                    </div>
+        <!-- Right controls -->
+        <div class="flex items-center gap-3">
+            <!-- Global approval meter -->
+            <div class="hidden sm:flex items-center gap-2.5 bg-slate-900/60 border border-slate-800 px-3.5 py-2 rounded-xl">
+                <div class="text-right">
+                    <p class="text-[9px] text-slate-500 font-bold">موافقة الفريق</p>
+                    <p class="font-black text-emerald-400 text-sm leading-none" id="global-approval-rate">100%</p>
+                </div>
+                <div class="w-2 h-8 bg-slate-800 rounded-full overflow-hidden flex flex-col-reverse">
+                    <div id="global-approval-bar" class="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 transition-all duration-700 rounded-full" style="height:100%"></div>
                 </div>
             </div>
 
-            <!-- Global approval rating bar -->
-            <div class="bg-slate-900/80 px-3.5 py-2 rounded-xl border border-slate-800 flex items-center gap-2.5 hidden sm:flex">
-                <div class="text-right">
-                    <p class="text-[10px] text-slate-500 font-bold">نسبة موافقة الخطة</p>
-                    <p class="font-extrabold text-emerald-400" id="global-approval-rate">100%</p>
-                </div>
-                <div class="w-2.5 h-8 bg-slate-950 rounded-full overflow-hidden flex items-end">
-                    <div id="global-approval-bar" class="w-full bg-emerald-500 transition-all duration-500" style="height: 100%"></div>
+            <!-- Notification Bell -->
+            <div class="relative">
+                <button onclick="toggleNotifications()" id="notif-btn" class="relative w-9 h-9 flex items-center justify-center rounded-xl bg-slate-900/60 border border-slate-800 text-slate-400 hover:text-white hover:border-slate-700 transition">
+                    <i class="fa-solid fa-bell text-sm"></i>
+                    <span id="notif-badge" class="absolute -top-1 -right-1 bg-rose-500 text-white font-bold w-4 h-4 rounded-full text-[8px] flex items-center justify-center border-2 border-[#080f1e]">3</span>
+                </button>
+                <div id="notif-dropdown" class="notification-dropdown absolute left-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/40 p-4 space-y-3 z-50">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                        <span class="font-bold text-white text-xs flex items-center gap-1.5"><i class="fa-solid fa-bell text-emerald-400"></i> تنبيهات النظام</span>
+                        <button onclick="markAllNotificationsRead()" class="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold transition">تحديد كمقروء</button>
+                    </div>
+                    <div class="space-y-2 max-h-56 overflow-y-auto" id="notif-list">
+                        <div class="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800 flex gap-2.5 items-start">
+                            <span class="text-emerald-400 mt-0.5 text-sm"><i class="fa-solid fa-circle-check"></i></span>
+                            <p class="text-slate-300 leading-relaxed text-[11px]"><strong>الذكاء الاصطناعي:</strong> تم مطابقة ملفك وتوجيه دعوة انضمام لـ <strong>فريق العيادات الطبية</strong>.</p>
+                        </div>
+                        <div class="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800 flex gap-2.5 items-start">
+                            <span class="text-indigo-400 mt-0.5 text-sm"><i class="fa-solid fa-award"></i></span>
+                            <p class="text-slate-300 leading-relaxed text-[11px]"><strong>تحديث التقييم:</strong> اجتزت اختبار Node.js بنجاح وحصلت على وسام <strong>Verified Node Dev</strong> بنسبة 92%.</p>
+                        </div>
+                        <div class="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800 flex gap-2.5 items-start">
+                            <span class="text-yellow-400 mt-0.5 text-sm"><i class="fa-solid fa-coins"></i></span>
+                            <p class="text-slate-300 leading-relaxed text-[11px]"><strong>المحفظة الذكية:</strong> قام العميل "أحمد دويدار" بتحويل دفعة الضمان <strong>(150 جنيه)</strong> لحسابك فور تسليم المايكرو جيج.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- Main Dynamic Workspace Layout -->
-    <div class="flex flex-1 flex-col lg:flex-row overflow-hidden">
+    <!-- Sidebar Overlay (Mobile) -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-        <!-- Sidebar Navigation (Responsive Drawer) -->
-        <aside class="w-full lg:w-64 border-l lg:border-l border-b lg:border-b-0 border-slate-900 bg-slate-950 p-4 flex flex-col gap-2 overflow-y-auto shrink-0">
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-2"><i class="fa-solid fa-compass ml-1"></i> استكشاف الخطة والأقسام</p>
+    <!-- ══════════════════════════════════════════
+         BODY: SIDEBAR + MAIN
+    ══════════════════════════════════════════ -->
+    <div class="flex flex-1 overflow-hidden">
 
-            <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="nav-btn active flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
-                <i class="fa-solid fa-house-chimney text-emerald-400 w-5 text-sm"></i>
+        <!-- ── SIDEBAR ── -->
+        <aside id="sidebar" class="fixed lg:static top-0 right-0 h-full lg:h-auto w-64 bg-[#080f1e] lg:bg-transparent border-l border-slate-800/80 lg:border-l-0 z-50 lg:z-auto flex flex-col gap-1 p-4 overflow-y-auto shrink-0 transition-transform duration-300 -translate-x-full lg:translate-x-0">
+
+            <!-- Sidebar Header (mobile only) -->
+            <div class="lg:hidden flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+                <span class="font-bold text-white text-sm">الأقسام</span>
+                <button onclick="toggleSidebar()" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <p class="text-[10px] font-bold text-slate-600 uppercase tracking-widest px-2 mb-1">الرؤية والتقنية</p>
+
+            <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="nav-btn active group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <span class="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-[.active]:bg-emerald-500/20 transition shrink-0">
+                    <i class="fa-solid fa-house-chimney text-xs"></i>
+                </span>
                 <span>الرؤية والـ Pitch الفائز</span>
             </button>
 
-            <button onclick="switchTab('tab-bugs')" id="btn-tab-bugs" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
-                <i class="fa-solid fa-bug-slash text-rose-400 w-5 text-sm"></i>
-                <span>تقرير فحص الأخطاء وعلاجها</span>
+            <button onclick="switchTab('tab-bugs')" id="btn-tab-bugs" class="nav-btn group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <span class="w-7 h-7 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400 group-[.active]:bg-rose-500/20 transition shrink-0">
+                    <i class="fa-solid fa-bug-slash text-xs"></i>
+                </span>
+                <span>فحص الأخطاء وعلاجها</span>
             </button>
 
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2"><i class="fa-solid fa-wand-magic-sparkles ml-1"></i> رحلة الطالب الفائقة بالـ AI</p>
+            <div class="border-t border-slate-800/60 my-2"></div>
+            <p class="text-[10px] font-bold text-slate-600 uppercase tracking-widest px-2 mb-1">رحلة الطالب بالـ AI</p>
 
-            <button onclick="switchTab('tab-journey')" id="btn-tab-journey" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
-                <i class="fa-solid fa-graduation-cap text-sky-400 w-5 text-sm"></i>
-                <span>مقيّم الـ CV والمهارات التفاعلي</span>
+            <button onclick="switchTab('tab-journey')" id="btn-tab-journey" class="nav-btn group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <span class="w-7 h-7 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 group-[.active]:bg-sky-500/20 transition shrink-0">
+                    <i class="fa-solid fa-graduation-cap text-xs"></i>
+                </span>
+                <span>مقيّم الـ CV والمهارات</span>
             </button>
 
-            <button onclick="switchTab('tab-profile')" id="btn-tab-profile" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
-                <i class="fa-solid fa-id-card-clip text-indigo-400 w-5 text-sm"></i>
-                <span>الملف غير التقليدي (Live Generator)</span>
+            <button onclick="switchTab('tab-profile')" id="btn-tab-profile" class="nav-btn group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <span class="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-[.active]:bg-indigo-500/20 transition shrink-0">
+                    <i class="fa-solid fa-id-card-clip text-xs"></i>
+                </span>
+                <span>الملف غير التقليدي</span>
             </button>
 
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mt-4 mb-2"><i class="fa-solid fa-cubes-stacked ml-1"></i> آليات الحركة والأمن المالي</p>
+            <div class="border-t border-slate-800/60 my-2"></div>
+            <p class="text-[10px] font-bold text-slate-600 uppercase tracking-widest px-2 mb-1">الآليات والنمو</p>
 
-            <button onclick="switchTab('tab-squads')" id="btn-tab-squads" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
-                <i class="fa-solid fa-people-group text-purple-400 w-5 text-sm"></i>
-                <span>الفرق البرمجية (Squad Creator)</span>
+            <button onclick="switchTab('tab-squads')" id="btn-tab-squads" class="nav-btn group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <span class="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 group-[.active]:bg-purple-500/20 transition shrink-0">
+                    <i class="fa-solid fa-people-group text-xs"></i>
+                </span>
+                <span>الفرق البرمجية (Squads)</span>
             </button>
 
-            <button onclick="switchTab('tab-gigs')" id="btn-tab-gigs" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white">
-                <i class="fa-solid fa-bolt text-yellow-400 w-5 text-sm"></i>
+            <button onclick="switchTab('tab-gigs')" id="btn-tab-gigs" class="nav-btn group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <span class="w-7 h-7 rounded-lg bg-yellow-500/10 flex items-center justify-center text-yellow-400 group-[.active]:bg-yellow-500/20 transition shrink-0">
+                    <i class="fa-solid fa-bolt text-xs"></i>
+                </span>
                 <span>المايكرو جيجز والـ Social</span>
             </button>
 
-            <button onclick="switchTab('tab-proactive')" id="btn-tab-proactive" class="nav-btn flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold transition text-slate-300 hover:bg-slate-900 hover:text-white border border-dashed border-emerald-500/20 bg-emerald-500/5">
-                <i class="fa-solid fa-trophy text-emerald-400 w-5 text-sm"></i>
-                <span>ميزات المركز الأول (أفكار ثورية)</span>
+            <button onclick="switchTab('tab-proactive')" id="btn-tab-proactive" class="nav-btn group flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-slate-400 hover:text-white hover:bg-slate-800/60 border border-dashed border-emerald-500/20 bg-emerald-500/5">
+                <span class="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 shrink-0">
+                    <i class="fa-solid fa-trophy text-xs"></i>
+                </span>
+                <span>ميزات المركز الأول</span>
             </button>
 
-            <div class="mt-auto pt-4 border-t border-slate-900 hidden lg:block">
-                <div class="bg-gradient-to-br from-emerald-500/10 to-indigo-500/10 p-3.5 rounded-xl border border-emerald-500/20 text-center">
-                    <p class="text-[11px] text-slate-400">تفاعلات زملائك وتعليقاتهم يتم دمجها وحفظها محلياً لتسهيل نقاش الفريق.</p>
+            <!-- Bottom note -->
+            <div class="mt-auto pt-4 hidden lg:block">
+                <div class="bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/40 rounded-xl p-3 text-center">
+                    <div class="flex items-center justify-center gap-1.5 mb-1">
+                        <span class="sync-dot" id="sync-indicator-2"></span>
+                        <span class="text-[10px] font-bold text-slate-400">مزامنة لحظية نشطة</span>
+                    </div>
+                    <p class="text-[10px] text-slate-600 leading-relaxed">تعليقاتك وتصويتاتك تظهر فوراً لجميع أعضاء الفريق</p>
                 </div>
             </div>
         </aside>
 
-        <!-- Main Content Area -->
-        <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-950/30">
+        <!-- ── MAIN CONTENT ── -->
+        <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
 
-            <!-- SECTION 1: OVERVIEW & PITCH STRATEGY -->
-            <section id="tab-overview" class="tab-content block space-y-8 animate-fade-in">
-                <div class="bg-gradient-to-r from-emerald-500/15 via-slate-950 to-indigo-500/10 p-6 sm:p-8 rounded-2xl border border-slate-900 relative overflow-hidden shadow-2xl">
-                    <div class="absolute top-0 right-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-3xl"></div>
-
-                    <div class="max-w-4xl space-y-4">
-                        <span class="bg-emerald-500/10 text-emerald-400 text-xs font-extrabold px-3.5 py-1.5 rounded-full border border-emerald-500/20 inline-block uppercase">استراتيجية الفوز الأكاديمية</span>
-                        <h2 class="text-3xl sm:text-4xl font-black text-white leading-tight">مشروع <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">SkillBridge 2.0</span>: الخيار الاعتمادي الأول للجامعات والعمل الحر</h2>
-                        <p class="text-slate-300 leading-relaxed text-sm sm:text-base">
-                            سوق العمل الطلابي مليء بالشكوك. العملاء يقلقون من الكفاءة، والطلاب يخشون ضياع مستحقاتهم، والجامعات تريد توثيق ساعات التدريب الميداني. **SkillBridge 2.0** يأتي ليحل هذه المشاكل بذكاء اصطناعي ونظام تحقق صارم ومسار تعليمي متكامل، ليتحول من موقع عمل حر عادي إلى **بنية تحتية موثوقة للتوظيف الأكاديمي**.
+            <!-- ════════════════════════════════
+                 TAB 1: OVERVIEW & PITCH
+            ════════════════════════════════ -->
+            <section id="tab-overview" class="tab-content block space-y-6 animate-fade-in">
+                <!-- Hero -->
+                <div class="relative overflow-hidden rounded-2xl border border-slate-800/60 bg-gradient-to-br from-slate-900 via-[#0a1628] to-slate-900 p-6 sm:p-8 shadow-xl">
+                    <div class="absolute -top-20 -right-20 w-64 h-64 bg-emerald-500/8 rounded-full blur-3xl pointer-events-none"></div>
+                    <div class="absolute -bottom-16 -left-10 w-48 h-48 bg-indigo-500/8 rounded-full blur-3xl pointer-events-none"></div>
+                    <div class="relative max-w-3xl space-y-4">
+                        <span class="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full border border-emerald-500/20 uppercase tracking-wider">
+                            <i class="fa-solid fa-star text-[8px]"></i> استراتيجية الفوز الأكاديمية
+                        </span>
+                        <h2 class="text-2xl sm:text-3xl font-black text-white leading-snug">
+                            مشروع <span class="text-transparent bg-clip-text bg-gradient-to-l from-emerald-400 to-teal-300">SkillBridge 2.0</span>:
+                            <br class="hidden sm:block">الخيار الاعتمادي الأول للجامعات والعمل الحر
+                        </h2>
+                        <p class="text-slate-400 leading-relaxed text-sm">
+                            سوق العمل الطلابي مليء بالشكوك. العملاء يقلقون من الكفاءة، والطلاب يخشون ضياع مستحقاتهم، والجامعات تريد توثيق ساعات التدريب الميداني. <strong class="text-slate-200">SkillBridge 2.0</strong> يأتي ليحل هذه المشاكل بذكاء اصطناعي ونظام تحقق صارم ومسار تعليمي متكامل، ليتحول من موقع عمل حر عادي إلى <strong class="text-emerald-400">بنية تحتية موثوقة للتوظيف الأكاديمي</strong>.
                         </p>
                     </div>
                 </div>
 
-                <!-- Three Pillars Design -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900 hover:border-emerald-500/25 transition">
-                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 mb-4 text-base"><i class="fa-solid fa-graduation-cap"></i></div>
-                        <h3 class="font-bold text-white text-base">سد فجوات وتأهيل الطلاب</h3>
-                        <p class="text-xs text-slate-400 mt-2 leading-relaxed">تحويل السيرة الذاتية لدردشة تفاعلية ومقارنتها بسوق العمل وإخضاع الطالب لكويزات صارمة وترشيح كورسات لسد الفجوة.</p>
+                <!-- Three Pillars -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="group bg-slate-900/50 border border-slate-800/60 hover:border-emerald-500/30 rounded-xl p-5 space-y-3 transition-all duration-300 hover:bg-slate-900/80">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center text-emerald-400 text-lg">
+                            <i class="fa-solid fa-graduation-cap"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">سد الفجوات وتأهيل الطلاب</h3>
+                        <p class="text-xs text-slate-500 leading-relaxed">تحويل السيرة الذاتية لدردشة تفاعلية ومقارنتها بسوق العمل وإخضاع الطالب لكويزات صارمة وترشيح كورسات لسد الفجوة.</p>
                     </div>
-                    <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900 hover:border-sky-500/25 transition">
-                        <div class="w-10 h-10 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 mb-4 text-base"><i class="fa-solid fa-shield-halved"></i></div>
-                        <h3 class="font-bold text-white text-base">أمان مالي كامل وموثوقية</h3>
-                        <p class="text-xs text-slate-400 mt-2 leading-relaxed">حفظ أموال العملاء بنظام ضمان مالي، وتجميد مستحقات الطلاب بالتوازي لضمان الجودة، مع فحص صارم لهويات الطلاب الجامعية.</p>
+                    <div class="group bg-slate-900/50 border border-slate-800/60 hover:border-sky-500/30 rounded-xl p-5 space-y-3 transition-all duration-300 hover:bg-slate-900/80">
+                        <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/15 flex items-center justify-center text-sky-400 text-lg">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">أمان مالي كامل وموثوقية</h3>
+                        <p class="text-xs text-slate-500 leading-relaxed">حفظ أموال العملاء بنظام ضمان مالي، وتجميد مستحقات الطلاب بالتوازي لضمان الجودة، مع فحص صارم لهويات الطلاب الجامعية.</p>
                     </div>
-                    <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900 hover:border-indigo-500/25 transition">
-                        <div class="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 mb-4 text-base"><i class="fa-solid fa-people-group"></i></div>
-                        <h3 class="font-bold text-white text-base">الفرق التلقائية الذكية</h3>
-                        <p class="text-xs text-slate-400 mt-2 leading-relaxed">تفتيت المشاريع الضخمة برمجياً وتشكيل فرق طلابية متجانسة آلياً بنسب أرباح عادلة وحل الفريق فور الإنجاز.</p>
+                    <div class="group bg-slate-900/50 border border-slate-800/60 hover:border-indigo-500/30 rounded-xl p-5 space-y-3 transition-all duration-300 hover:bg-slate-900/80">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/15 flex items-center justify-center text-indigo-400 text-lg">
+                            <i class="fa-solid fa-people-group"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">الفرق التلقائية الذكية</h3>
+                        <p class="text-xs text-slate-500 leading-relaxed">تفتيت المشاريع الضخمة برمجياً وتشكيل فرق طلابية متجانسة آلياً بنسب أرباح عادلة وحل الفريق فور الإنجاز.</p>
                     </div>
                 </div>
 
-                <!-- Collaborative Section Widget (Overview Feedback) -->
-                <div class="bg-slate-900/45 p-6 rounded-xl border border-slate-800">
-                    <h3 class="text-sm font-bold text-white mb-2"><i class="fa-solid fa-users-viewfinder text-emerald-400"></i> نقاش وتصويت الفريق حول الرؤية الإستراتيجية العامة</h3>
-                    <p class="text-xs text-slate-400 mb-4">هل تعتقد أن فكرة تحويل المنصة لبنية أكاديمية هي الاتجاه الأقوى للهاكاثون؟ شاركنا برأيك وصوتك!</p>
+                <!-- Team Discussion -->
+                <div class="bg-slate-900/40 border border-slate-800/50 rounded-xl p-5">
+                    <div class="flex items-center gap-2 mb-1">
+                        <i class="fa-solid fa-comments text-emerald-400"></i>
+                        <h3 class="text-sm font-bold text-white">نقاش وتصويت الفريق حول الرؤية الإستراتيجية العامة</h3>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4">هل تعتقد أن فكرة تحويل المنصة لبنية أكاديمية هي الاتجاه الأقوى للهاكاثون؟ شاركنا برأيك وصوتك!</p>
                     <div class="collaboration-box" data-section="overview_strategy"></div>
                 </div>
             </section>
 
-            <!-- SECTION 2: CODE AUDITS & BUGS -->
-            <section id="tab-bugs" class="tab-content hidden space-y-8 animate-fade-in">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <!-- ════════════════════════════════
+                 TAB 2: CODE BUGS
+            ════════════════════════════════ -->
+            <section id="tab-bugs" class="tab-content hidden space-y-6 animate-fade-in">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
-                        <h2 class="text-2xl font-extrabold text-white">تقرير فحص وتدقيق أكواد مستودع SkillBridge الحالي</h2>
-                        <p class="text-xs text-slate-400 mt-1">اكتشفنا وعالجنا 3 مشاكل تقنية حاسمة في الكود المرفق لتأمين استقرار المنصة سحابياً بالكامل.</p>
+                        <h2 class="text-xl font-extrabold text-white">تقرير فحص وتدقيق أكواد مستودع SkillBridge الحالي</h2>
+                        <p class="text-xs text-slate-500 mt-1">اكتشفنا وعالجنا 3 مشاكل تقنية حاسمة في الكود المرفق لتأمين استقرار المنصة سحابياً.</p>
                     </div>
-                    <span class="bg-rose-500/10 text-rose-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-rose-500/20 flex items-center gap-1"><i class="fa-solid fa-bug-slash"></i> تم الكشف والعلاج</span>
+                    <span class="flex items-center gap-1.5 bg-rose-500/10 text-rose-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-rose-500/20 shrink-0">
+                        <i class="fa-solid fa-bug-slash"></i> تم الكشف والعلاج
+                    </span>
                 </div>
 
-                <!-- Interactive Diagnostics Playground (Live Console) -->
-                <div class="bg-slate-950 rounded-xl border border-slate-850 p-5 space-y-4 shadow-2xl">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-900 pb-3">
-                        <div>
-                            <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-terminal text-emerald-400"></i> طرفية الفحص الذاتي النشطة (Diagnostics Terminal UI)</h3>
-                            <p class="text-xs text-slate-400">شغّل الفحص الذاتي التفاعلي لتتأكد من سلامة معالجة كود الـ Auth، واتصال قاعدة البيانات، وتكامل التوكن.</p>
+                <!-- Diagnostics Terminal -->
+                <div class="bg-[#060d1b] rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+                    <div class="flex items-center justify-between gap-3 bg-slate-900/80 px-4 py-3 border-b border-slate-800">
+                        <div class="flex items-center gap-3">
+                            <div class="flex gap-1.5">
+                                <span class="w-3 h-3 rounded-full bg-rose-500/70"></span>
+                                <span class="w-3 h-3 rounded-full bg-yellow-500/70"></span>
+                                <span class="w-3 h-3 rounded-full bg-emerald-500/70"></span>
+                            </div>
+                            <span class="text-slate-400 text-xs font-mono">diagnostics-terminal.sh</span>
                         </div>
-                        <button onclick="runDiagnostics()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs font-mono transition shadow-lg shadow-emerald-500/10">
-                            sh run-diagnostics.sh
+                        <button onclick="runDiagnostics()" class="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-xs transition shadow-lg shadow-emerald-500/20">
+                            <i class="fa-solid fa-play text-[10px]"></i> تشغيل الفحص
                         </button>
                     </div>
-
-                    <!-- Terminal Console Window -->
-                    <div class="bg-black/85 p-4 rounded-xl border border-slate-900 min-h-[160px] max-h-[220px] overflow-y-auto font-mono text-xs text-emerald-400 space-y-1" id="terminal-output">
-                        <p class="text-slate-500">> انقر على زر تشغيل الفحص البرمجي لبدء الاختبارات محاكاة حية...</p>
+                    <div class="p-4 min-h-[140px] max-h-[200px] overflow-y-auto font-mono text-xs space-y-1" id="terminal-output">
+                        <p class="text-slate-600">> انقر على "تشغيل الفحص" لبدء الاختبارات...</p>
                     </div>
                 </div>
 
                 <!-- Bug Cards -->
-                <div class="space-y-6">
-
+                <div class="space-y-4">
                     <!-- Bug 1 -->
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-4">
+                    <div class="bg-slate-900/50 border border-slate-800/60 hover:border-rose-500/20 rounded-xl p-5 space-y-4 transition">
                         <div class="flex justify-between items-start flex-wrap gap-2">
                             <div>
-                                <span class="bg-rose-500/15 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/25">أمني حرج</span>
-                                <h3 class="font-bold text-white text-base mt-1.5">1. ثغرة الـ 401 وسقوط التوكن نتيجة حظر الكوكيز عابر النطاقات</h3>
+                                <span class="inline-flex items-center gap-1 bg-rose-500/10 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/20">
+                                    <i class="fa-solid fa-triangle-exclamation text-[9px]"></i> أمني حرج
+                                </span>
+                                <h3 class="font-bold text-white text-sm mt-2">1. ثغرة الـ 401 وسقوط التوكن نتيجة حظر الكوكيز عابر النطاقات</h3>
                             </div>
-                            <span class="text-xs text-slate-500 font-mono">http.ts / authApi.ts</span>
+                            <code class="text-[10px] text-slate-500 bg-slate-800/60 px-2 py-1 rounded">http.ts / authApi.ts</code>
                         </div>
-                        <p class="text-xs text-slate-300 leading-relaxed">
-                            كان الباكيند يرفض طلبات الاستدعاء نظراً لحظر كوكيز <code class="font-mono text-rose-400">HttpOnly</code> بين النطاقات المستضافة على Vercel و Azure. تم علاجها برمجياً بتحويل النظام لـ **Bearer JWT Flow**؛ حيث يتم حفظ التوكن في الـ <code class="font-mono text-emerald-400">localStorage</code> تلقائياً وتمريره برأس ترويسة الطلب.
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            كان الباكيند يرفض طلبات الاستدعاء نظراً لحظر كوكيز <code class="text-rose-400 bg-rose-500/10 px-1 rounded">HttpOnly</code> بين النطاقات المستضافة على Vercel و Azure. تم علاجها برمجياً بتحويل النظام لـ <strong class="text-slate-200">Bearer JWT Flow</strong>؛ حيث يتم حفظ التوكن في الـ <code class="text-emerald-400 bg-emerald-500/10 px-1 rounded">localStorage</code> تلقائياً وتمريره برأس ترويسة الطلب.
                         </p>
-                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-900 text-xs font-mono text-slate-400 space-y-2">
-                            <p class="text-emerald-400 font-bold border-b border-slate-900 pb-1.5">// كود التمرير والتعرف التلقائي بـ http.ts</p>
-                            <pre class="overflow-x-auto">if (typeof window !== "undefined") {
+                        <div class="bg-[#060d1b] p-4 rounded-lg border border-slate-800 text-xs font-mono space-y-1">
+                            <p class="text-emerald-400 font-bold border-b border-slate-800 pb-2 mb-2">// كود التمرير والتعرف التلقائي بـ http.ts</p>
+                            <pre class="overflow-x-auto text-slate-400">if (typeof window !== "undefined") {
   const token = localStorage.getItem("skillbridge_token");
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 }</pre>
                         </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-4" data-section="bug_401_cookies"></div>
+                        <div class="collaboration-box pt-3 border-t border-slate-800/50" data-section="bug_401_cookies"></div>
                     </div>
 
                     <!-- Bug 2 -->
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-4">
+                    <div class="bg-slate-900/50 border border-slate-800/60 hover:border-amber-500/20 rounded-xl p-5 space-y-4 transition">
                         <div class="flex justify-between items-start flex-wrap gap-2">
                             <div>
-                                <span class="bg-amber-500/15 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-500/25">إعدادات بيئة العمل</span>
-                                <h3 class="font-bold text-white text-base mt-1.5">2. خطأ 404 في طلبات تسجيل الدخول على خوادم Azure الحية</h3>
+                                <span class="inline-flex items-center gap-1 bg-amber-500/10 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-500/20">
+                                    <i class="fa-solid fa-gear text-[9px]"></i> إعدادات بيئة العمل
+                                </span>
+                                <h3 class="font-bold text-white text-sm mt-2">2. خطأ 404 في طلبات تسجيل الدخول على خوادم Azure الحية</h3>
                             </div>
-                            <span class="text-xs text-slate-500 font-mono">NEXT_PUBLIC_API_URL Config</span>
+                            <code class="text-[10px] text-slate-500 bg-slate-800/60 px-2 py-1 rounded">NEXT_PUBLIC_API_URL Config</code>
                         </div>
-                        <p class="text-xs text-slate-300 leading-relaxed">
-                            المشكلة أن المتغير البيئي على Vercel يُكتب بدون لاحقة <code class="font-mono">/api</code> مما يسبب تحويل رابط الاستدعاء إلى مسار غير مسجل بالباكيند. قمنا ببناء دالة معالجة تقوم بتصحيح وتأمين مسار الباكيند تلقائياً من الفرونت إند.
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            المشكلة أن المتغير البيئي على Vercel يُكتب بدون لاحقة <code class="text-amber-400 bg-amber-500/10 px-1 rounded">/api</code> مما يسبب تحويل رابط الاستدعاء إلى مسار غير مسجل بالباكيند. قمنا ببناء دالة معالجة تقوم بتصحيح وتأمين مسار الباكيند تلقائياً من الفرونت إند.
                         </p>
-                        <div class="bg-slate-950 p-4 rounded-lg border border-slate-900 text-xs font-mono text-slate-400">
-                            <p class="text-emerald-400 font-bold border-b border-slate-900 pb-1.5">// دالة تنظيف وتهيئة الرابط تلقائياً</p>
-                            <pre class="overflow-x-auto">const normalizeBaseUrl = (value) => {
+                        <div class="bg-[#060d1b] p-4 rounded-lg border border-slate-800 text-xs font-mono">
+                            <p class="text-emerald-400 font-bold border-b border-slate-800 pb-2 mb-2">// دالة تنظيف وتهيئة الرابط تلقائياً</p>
+                            <pre class="overflow-x-auto text-slate-400">const normalizeBaseUrl = (value) => {
   let cleaned = value.replace(/\/+$/, "");
   return cleaned.endsWith("/api") ? cleaned : `${cleaned}/api`;
 };</pre>
                         </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-4" data-section="bug_404_azure"></div>
+                        <div class="collaboration-box pt-3 border-t border-slate-800/50" data-section="bug_404_azure"></div>
                     </div>
 
                     <!-- Bug 3 -->
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-4">
+                    <div class="bg-slate-900/50 border border-slate-800/60 hover:border-rose-500/20 rounded-xl p-5 space-y-4 transition">
                         <div class="flex justify-between items-start flex-wrap gap-2">
                             <div>
-                                <span class="bg-rose-500/15 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/25">هجرة قاعدة البيانات</span>
-                                <h3 class="font-bold text-white text-base mt-1.5">3. تعطل وتوقف النشر بسبب تقييمات مكررة بجدول التقييمات</h3>
+                                <span class="inline-flex items-center gap-1 bg-rose-500/10 text-rose-400 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/20">
+                                    <i class="fa-solid fa-database text-[9px]"></i> هجرة قاعدة البيانات
+                                </span>
+                                <h3 class="font-bold text-white text-sm mt-2">3. تعطل وتوقف النشر بسبب تقييمات مكررة بجدول التقييمات</h3>
                             </div>
-                            <span class="text-xs text-slate-500 font-mono">الملفات المتأثرة: schema.sql / database migrations</span>
+                            <code class="text-[10px] text-slate-500 bg-slate-800/60 px-2 py-1 rounded">schema.sql / migrations</code>
                         </div>
-                        <p class="text-xs text-slate-300 leading-relaxed">
+                        <p class="text-xs text-slate-400 leading-relaxed">
                             لوضع قيد فريد يمنع تكرار المراجعات، قد يفشل تطبيق الفهرس في الإنتاج إذا كانت الجداول تحتوي مسبقاً على أي تقييم مكرر. قمنا بتضمين نص الفحص المسبق وتصفية المشاكل تلقائياً قبل الترقيات.
                         </p>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-4" data-section="bug_reviews_migration"></div>
+                        <div class="collaboration-box pt-3 border-t border-slate-800/50" data-section="bug_reviews_migration"></div>
                     </div>
-
                 </div>
             </section>
 
-            <!-- SECTION 3: SMART STUDENT AI JOURNEY -->
-            <section id="tab-journey" class="tab-content hidden space-y-8 animate-fade-in">
-                <div class="bg-gradient-to-r from-sky-500/15 to-indigo-500/10 p-6 rounded-xl border border-slate-900">
-                    <h2 class="text-2xl font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-sky-400"></i> ميزة التقييم الحواري التفاعلي واختبار المهارات بالـ AI</h2>
-                    <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+            <!-- ════════════════════════════════
+                 TAB 3: AI JOURNEY
+            ════════════════════════════════ -->
+            <section id="tab-journey" class="tab-content hidden space-y-6 animate-fade-in">
+                <div class="bg-gradient-to-br from-sky-500/10 to-indigo-500/10 border border-slate-800/60 rounded-xl p-5">
+                    <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles text-sky-400"></i>
+                        ميزة التقييم الحواري التفاعلي واختبار المهارات بالـ AI
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-2 leading-relaxed">
                         نقلة نوعية في التوثيق: يتلقى الباكيند الـ CV ويقوم الذكاء الاصطناعي بتحليله، ثم يفتح شات حواري ذكي لمناقشة مهارات الطالب وإعطاء نسب دقيقة موثقة بكويزات واختبارات ليرى العميل تقييماً حقيقياً غير قابل للتزييف.
                     </p>
                 </div>
 
-                <!-- Chat Simulation Panel -->
-                <div class="bg-slate-900 border border-slate-850 rounded-2xl p-5 space-y-4 shadow-xl">
-                    <div class="flex justify-between items-center border-b border-slate-800 pb-3 flex-wrap gap-2">
+                <!-- Chat Simulator -->
+                <div class="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+                    <div class="flex justify-between items-center bg-slate-900/80 px-4 py-3 border-b border-slate-800">
                         <div>
-                            <h3 class="text-base font-bold text-white flex items-center gap-2">محاكي ميزة تشكيل التقييم السريع (AI Assessment Interview)</h3>
-                            <p class="text-xs text-slate-400">محاكاة تفاعلية للدردشة التقييمية الذكية مع الطالب لتحديد نسب المهارات:</p>
+                            <h3 class="text-sm font-bold text-white">محاكي التقييم السريع (AI Assessment Interview)</h3>
+                            <p class="text-[10px] text-slate-500 mt-0.5">محاكاة تفاعلية للدردشة التقييمية الذكية مع الطالب</p>
                         </div>
-                        <span class="bg-emerald-500/10 text-emerald-400 text-xs font-bold px-2 py-1 rounded border border-emerald-500/20"><i class="fa-solid fa-robot"></i> نشط وتفاعلي</span>
+                        <span class="flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                            <span class="sync-dot w-1.5 h-1.5"></span> نشط وتفاعلي
+                        </span>
                     </div>
 
-                    <!-- Chat Box UI Mockup -->
-                    <div class="bg-slate-950 rounded-xl border border-slate-800 p-4 max-h-[300px] overflow-y-auto space-y-4" id="chat-container">
-                        <!-- Message 1 (AI) -->
-                        <div class="flex gap-3 max-w-[85%]">
-                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0 text-xs">AI</div>
-                            <div class="bg-slate-900 px-3.5 py-2.5 rounded-2xl rounded-tr-none text-xs text-slate-300 leading-relaxed">
-                                أهلاً بك يا أحمد! لقد قمت بتحليل سيرتك الذاتية. أرى أنك مهتم بمجال **تطوير الويب الشامل (Full-Stack Dev)** وذكرت مهارات في **React.js** و **Node.js**. 
-                                دعنا نبدأ بمشروع عملي قمت به في Node.js؛ ما هي الطريقة التي تفضلها لحماية كلمات مرور المستخدمين قبل حفظها بقاعدة البيانات؟
+                    <div class="p-4 max-h-72 overflow-y-auto space-y-4 bg-[#060d1b]" id="chat-container">
+                        <div class="flex gap-3 max-w-[88%]">
+                            <div class="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 text-[10px] font-bold">AI</div>
+                            <div class="bg-slate-800/80 border border-slate-700/50 px-4 py-2.5 rounded-2xl rounded-tr-none text-xs text-slate-300 leading-relaxed">
+                                أهلاً بك يا أحمد! لقد قمت بتحليل سيرتك الذاتية. أرى أنك مهتم بمجال <strong class="text-white">تطوير الويب الشامل (Full-Stack Dev)</strong> وذكرت مهارات في <strong class="text-white">React.js</strong> و <strong class="text-white">Node.js</strong>.
+                                دعنا نبدأ: ما هي الطريقة التي تفضلها لحماية كلمات مرور المستخدمين قبل حفظها بقاعدة البيانات؟
                             </div>
                         </div>
-                        <!-- Message 2 (Student) -->
-                        <div class="flex gap-3 max-w-[85%] mr-auto flex-row-reverse">
-                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 text-xs">أنت</div>
-                            <div class="bg-indigo-600/20 border border-indigo-500/25 px-3.5 py-2.5 rounded-2xl rounded-tl-none text-xs text-slate-200 leading-relaxed">
-                                أهلاً بك! أفضل دائماً استخدام التشفير أحادي الاتجاه بـ hashing، مثل استخدام مكتبة bcryptjs مع salt rounds مناسب (مثلاً 10) لمنع التخمين وحفظ الهاش فقط في الداتابيز.
+                        <div class="flex gap-3 max-w-[88%] mr-auto flex-row-reverse">
+                            <div class="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 text-[10px] font-bold">أنت</div>
+                            <div class="bg-indigo-600/15 border border-indigo-500/20 px-4 py-2.5 rounded-2xl rounded-tl-none text-xs text-slate-200 leading-relaxed">
+                                أفضل دائماً استخدام التشفير أحادي الاتجاه بـ hashing، مثل استخدام مكتبة bcryptjs مع salt rounds مناسب (10) لمنع التخمين وحفظ الهاش فقط في الداتابيز.
                             </div>
                         </div>
-                        <!-- Message 3 (AI) -->
-                        <div class="flex gap-3 max-w-[85%]">
-                            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0 text-xs">AI</div>
-                            <div class="bg-slate-900 px-3.5 py-2.5 rounded-2xl rounded-tr-none text-xs text-slate-300 leading-relaxed">
+                        <div class="flex gap-3 max-w-[88%]">
+                            <div class="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 text-[10px] font-bold">AI</div>
+                            <div class="bg-slate-800/80 border border-slate-700/50 px-4 py-2.5 rounded-2xl rounded-tr-none text-xs text-slate-300 leading-relaxed">
                                 ممتاز جداً! إجابة صحيحة تدل على فهم أمني رائع.
-                                الآن بالنسبة لـ **React.js**: هل قمت مسبقاً باستخدام الـ `useEffect`؟ وكيف يمكنك تلافي تكرار طلبات الاتصال بالخادم عند كل إعادة رندر؟
+                                الآن بالنسبة لـ <strong class="text-white">React.js</strong>: هل قمت مسبقاً باستخدام الـ <code class="text-sky-400 bg-sky-500/10 px-1 rounded">useEffect</code>؟ وكيف يمكنك تلافي تكرار طلبات الاتصال بالخادم عند كل إعادة رندر؟
                             </div>
                         </div>
                         <div id="chat-dynamic-message"></div>
                     </div>
 
-                    <!-- Interactive Chat Action Box -->
-                    <div class="flex gap-2">
-                        <input type="text" id="chat-input" placeholder="اكتب إجابتك هنا لمحاكاة تقييم المهارات..." class="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-xl text-xs text-slate-100 focus:outline-none focus:border-emerald-500">
-                        <button onclick="sendInteractiveMessage()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2 text-xs rounded-xl transition flex items-center gap-1">
-                            <span>إرسال</span> <i class="fa-solid fa-paper-plane-rtl"></i>
+                    <div class="flex gap-2 p-3 border-t border-slate-800 bg-slate-900/60">
+                        <input type="text" id="chat-input" placeholder="اكتب إجابتك هنا لمحاكاة تقييم المهارات..." class="flex-1 bg-[#060d1b] border border-slate-700 px-4 py-2.5 rounded-xl text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500 transition">
+                        <button onclick="sendInteractiveMessage()" class="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold px-4 py-2.5 text-xs rounded-xl transition shrink-0">
+                            إرسال <i class="fa-solid fa-paper-plane text-[10px]"></i>
                         </button>
                     </div>
                 </div>
             </section>
 
-            <!-- TAB 4: NON-TRADITIONAL PORTFOLIO -->
-            <section id="tab-profile" class="tab-content hidden space-y-8 animate-fade-in">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h2 class="text-2xl font-extrabold text-white">الملف الشخصي التفاعلي للطالب - منبع الثقة للعميل (Trust Builder)</h2>
-                        <p class="text-xs text-slate-400 mt-1">وداعاً للسير الذاتية الجامدة. نقدم ملفاً تفاعلياً حياً يثبت كفاءة الطالب ودرجاته ونسب نجاحه وجودة أكواده البرمجية للعملاء.</p>
-                    </div>
+            <!-- ════════════════════════════════
+                 TAB 4: STUDENT PROFILE
+            ════════════════════════════════ -->
+            <section id="tab-profile" class="tab-content hidden space-y-6 animate-fade-in">
+                <div>
+                    <h2 class="text-xl font-extrabold text-white">الملف الشخصي التفاعلي للطالب – Trust Builder</h2>
+                    <p class="text-xs text-slate-500 mt-1">وداعاً للسير الذاتية الجامدة. ملف تفاعلي حي يثبت كفاءة الطالب ودرجاته ونسب نجاحه وجودة أكواده البرمجية للعملاء.</p>
                 </div>
 
-                <!-- Interactive Mockup Profile Layout -->
-                <div class="bg-slate-900 border border-slate-850 rounded-2xl overflow-hidden shadow-2xl">
-                    <div class="bg-gradient-to-r from-emerald-500/20 via-slate-900 to-indigo-500/30 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800">
+                <!-- Profile Card -->
+                <div class="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+                    <div class="bg-gradient-to-l from-indigo-500/10 via-slate-900/60 to-emerald-500/10 p-5 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div class="flex items-center gap-4">
-                            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-indigo-600 flex items-center justify-center font-extrabold text-2xl text-slate-950 shadow-lg" id="live-avatar">
-                                ع م
-                            </div>
+                            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-indigo-600 flex items-center justify-center font-black text-xl text-slate-950 shadow-lg" id="live-avatar">ع م</div>
                             <div>
                                 <div class="flex items-center gap-2">
-                                    <h3 class="text-xl font-bold text-white" id="live-name-display">عمر محمود</h3>
-                                    <span class="bg-emerald-500/15 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/30"><i class="fa-solid fa-circle-check"></i> طالب موثق</span>
+                                    <h3 class="text-lg font-bold text-white" id="live-name-display">عمر محمود</h3>
+                                    <span class="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold px-2 py-0.5 rounded border border-emerald-500/20">
+                                        <i class="fa-solid fa-circle-check text-[8px]"></i> طالب موثق
+                                    </span>
                                 </div>
-                                <p class="text-xs text-slate-400 mt-1" id="live-univ-display">جامعة عين شمس - هندسة البرمجيات (السنة الرابعة)</p>
+                                <p class="text-xs text-slate-500 mt-0.5" id="live-univ-display">جامعة عين شمس - هندسة البرمجيات (السنة الرابعة)</p>
                             </div>
                         </div>
                         <div class="flex flex-wrap gap-2 text-xs">
-                            <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 font-semibold text-slate-300">
-                                معدل النجاح الموثق: <span class="text-emerald-400">97%</span>
+                            <div class="bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg font-semibold text-slate-300">
+                                معدل النجاح: <span class="text-emerald-400">97%</span>
                             </div>
-                            <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 font-semibold text-slate-300">
-                                تقدير الكويزات الشامل: <span class="text-indigo-400" id="live-grade-display">المعدل: A+</span>
+                            <div class="bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-lg font-semibold text-slate-300">
+                                تقدير الكويزات: <span class="text-indigo-400" id="live-grade-display">A+</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Profile Body Tabs -->
-                    <div class="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 text-sm">
-
-                        <!-- Left column: Verified Skill Scores -->
-                        <div class="space-y-4 lg:col-span-1">
-                            <h4 class="font-bold text-white flex items-center gap-2 mb-2"><i class="fa-solid fa-square-poll-vertical text-emerald-400"></i> مهارات تم التحقق منها بالاختبارات</h4>
-
-                            <!-- Skill 1 -->
-                            <div class="space-y-1.5">
-                                <div class="flex justify-between text-xs font-semibold">
-                                    <span class="text-slate-300">Backend - Node.js</span>
-                                    <span class="text-indigo-400 font-bold" id="live-node-num">92%</span>
+                    <div class="p-5 grid grid-cols-1 lg:grid-cols-3 gap-5">
+                        <!-- Skill Bars -->
+                        <div class="space-y-4">
+                            <h4 class="font-bold text-white text-xs flex items-center gap-1.5">
+                                <i class="fa-solid fa-chart-bar text-emerald-400"></i> مهارات محققة بالاختبارات
+                            </h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="flex justify-between text-[11px] font-semibold mb-1.5">
+                                        <span class="text-slate-400">Backend - Node.js</span>
+                                        <span class="text-indigo-400 font-bold" id="live-node-num">92%</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-l from-indigo-500 to-indigo-400 rounded-full transition-all duration-500" id="live-node-bar" style="width:92%"></div>
+                                    </div>
                                 </div>
-                                <div class="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-850">
-                                    <div class="h-full bg-indigo-500 rounded-full transition-all duration-300" id="live-node-bar" style="width: 92%"></div>
-                                </div>
-                            </div>
-
-                            <!-- Skill 2 -->
-                            <div class="space-y-1.5">
-                                <div class="flex justify-between text-xs font-semibold">
-                                    <span class="text-slate-300">Frontend - React.js</span>
-                                    <span class="text-emerald-400 font-bold" id="live-react-num">85%</span>
-                                </div>
-                                <div class="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-850">
-                                    <div class="h-full bg-emerald-500 rounded-full transition-all duration-300" id="live-react-bar" style="width: 85%"></div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] font-semibold mb-1.5">
+                                        <span class="text-slate-400">Frontend - React.js</span>
+                                        <span class="text-emerald-400 font-bold" id="live-react-num">85%</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-gradient-to-l from-emerald-500 to-emerald-400 rounded-full transition-all duration-500" id="live-react-bar" style="width:85%"></div>
+                                    </div>
                                 </div>
                             </div>
-
-                            <div class="p-3 bg-slate-950 rounded-xl border border-slate-850 text-xs text-slate-400 space-y-2">
-                                <p class="font-semibold text-white"><i class="fa-solid fa-circle-info text-emerald-400 ml-1"></i> ميزة الثقة الرقمية:</p>
-                                <p class="leading-relaxed">لا يمكن للطالب تعديل هذه النسب يدوياً. يتم تعديلها أو إنقاصها آلياً بناءً على كفاءته في حل الكويزات الصارمة بالمنصة.</p>
+                            <div class="bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3 text-[10px] text-slate-400 leading-relaxed">
+                                <strong class="text-emerald-400 block mb-1"><i class="fa-solid fa-lock ml-1"></i>ميزة الثقة الرقمية:</strong>
+                                لا يمكن للطالب تعديل هذه النسب يدوياً. يتم تعديلها آلياً بناءً على أداءه في الكويزات الصارمة.
                             </div>
                         </div>
 
-                        <!-- Right Column: Live Code Analysis & Projects -->
-                        <div class="space-y-4 lg:col-span-2">
-                            <h4 class="font-bold text-white flex items-center gap-2"><i class="fa-solid fa-code text-indigo-400"></i> مقتطفات الأكواد البرمجية المحللة للطلاب (Verified Code Snippets)</h4>
-                            <div class="bg-slate-950 rounded-xl border border-slate-850 overflow-hidden">
-                                <div class="bg-slate-900/60 px-4 py-2 border-b border-slate-850 flex justify-between items-center">
-                                    <span class="font-mono text-xs text-slate-400">AuthMiddleware.ts</span>
-                                    <span class="text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 font-bold"><i class="fa-solid fa-shield text-[9px] ml-1"></i> كود معتمد كأفضل ممارسة</span>
+                        <!-- Code Snippet -->
+                        <div class="lg:col-span-2 space-y-3">
+                            <h4 class="font-bold text-white text-xs flex items-center gap-1.5">
+                                <i class="fa-solid fa-code text-indigo-400"></i> مقتطفات الأكواد المحللة (Verified Code Snippets)
+                            </h4>
+                            <div class="bg-[#060d1b] border border-slate-800 rounded-xl overflow-hidden">
+                                <div class="flex justify-between items-center px-4 py-2 border-b border-slate-800 bg-slate-900/60">
+                                    <span class="font-mono text-[11px] text-slate-500">AuthMiddleware.ts</span>
+                                    <span class="text-[9px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20 font-bold">
+                                        <i class="fa-solid fa-shield ml-1"></i>كود معتمد
+                                    </span>
                                 </div>
-                                <pre class="p-4 font-mono text-xs text-slate-300 overflow-x-auto">
-<span class="text-indigo-400">export const</span> authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
+                                <pre class="p-4 font-mono text-xs text-slate-400 overflow-x-auto leading-relaxed"><span class="text-indigo-400">export const</span> authenticateJWT = (req: Request, res: Response, next: NextFunction) => {
   <span class="text-emerald-400">const</span> authHeader = req.headers.authorization;
   <span class="text-indigo-400">if</span> (authHeader) {
     <span class="text-emerald-400">const</span> token = authHeader.split(<span class="text-yellow-400">' '</span>)[<span class="text-purple-400">1</span>];
@@ -471,43 +558,40 @@
   }
 };</pre>
                             </div>
-
-                            <!-- AI Code Review snippet -->
-                            <div class="bg-emerald-500/5 p-3.5 rounded-xl border border-emerald-500/10 flex gap-3 text-xs">
-                                <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0"><i class="fa-solid fa-sparkles"></i></div>
+                            <div class="flex gap-3 bg-emerald-500/5 border border-emerald-500/15 rounded-xl p-3 text-xs">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center text-emerald-400 shrink-0">
+                                    <i class="fa-solid fa-sparkles"></i>
+                                </div>
                                 <div>
-                                    <p class="font-bold text-emerald-400 mb-0.5">تقرير جودة الكود بالذكاء الاصطناعي (AI Code Quality Index):</p>
-                                    <p class="text-slate-300 leading-relaxed">جودة الكود تبلغ 9.4/10. المبرمج يلتزم بمعايير الحماية الأمنية الصارمة، الكود متماسك، نظيف، وبدون تكرار برمجى مهدر.</p>
+                                    <p class="font-bold text-emerald-400 mb-0.5">AI Code Quality Index:</p>
+                                    <p class="text-slate-400 leading-relaxed">جودة الكود تبلغ 9.4/10. المبرمج يلتزم بمعايير الحماية الأمنية الصارمة، الكود متماسك، نظيف، وبدون تكرار برمجي مهدر.</p>
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
 
-                <!-- Custom Profile Generator Workbench -->
-                <div class="bg-slate-900 border border-slate-850 p-5 rounded-2xl space-y-4">
-                    <h3 class="font-bold text-white text-sm border-b border-slate-800 pb-2"><i class="fa-solid fa-user-pen text-indigo-400"></i> محرّر بيانات الطالب حياً (تعديل تفاعلي)</h3>
-
+                <!-- Live Editor -->
+                <div class="bg-slate-900/50 border border-slate-800/60 rounded-xl p-5 space-y-4">
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <i class="fa-solid fa-user-pen text-indigo-400"></i> محرّر بيانات الطالب الحي (تعديل تفاعلي)
+                    </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                        <div class="space-y-1">
+                        <div class="space-y-1.5">
                             <label class="text-slate-500 font-bold block">الاسم بالكامل:</label>
-                            <input type="text" id="prof-name" value="عمر محمود" oninput="updateProfileLive()" class="w-full bg-slate-950 border border-slate-850 px-3 py-2 rounded-lg text-slate-200 focus:outline-none focus:border-indigo-500">
+                            <input type="text" id="prof-name" value="عمر محمود" oninput="updateProfileLive()" class="w-full bg-[#060d1b] border border-slate-700 px-3 py-2.5 rounded-lg text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                         </div>
-
-                        <div class="space-y-1">
+                        <div class="space-y-1.5">
                             <label class="text-slate-500 font-bold block">الجامعة والتخصص:</label>
-                            <input type="text" id="prof-univ" value="جامعة عين شمس - هندسة البرمجيات" oninput="updateProfileLive()" class="w-full bg-slate-950 border border-slate-850 px-3 py-2 rounded-lg text-slate-200 focus:outline-none focus:border-indigo-500">
+                            <input type="text" id="prof-univ" value="جامعة عين شمس - هندسة البرمجيات" oninput="updateProfileLive()" class="w-full bg-[#060d1b] border border-slate-700 px-3 py-2.5 rounded-lg text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                         </div>
-
-                        <div class="space-y-1">
+                        <div class="space-y-1.5">
                             <label class="text-slate-500 font-bold block">مستوى Node.js (%):</label>
                             <input type="range" id="prof-skill-node" min="10" max="100" value="92" oninput="updateProfileLive()" class="w-full accent-indigo-500">
                         </div>
-
-                        <div class="space-y-1">
+                        <div class="space-y-1.5">
                             <label class="text-slate-500 font-bold block">معدل الاختبارات:</label>
-                            <select id="prof-grade" onchange="updateProfileLive()" class="w-full bg-slate-950 border border-slate-850 px-3 py-2 rounded-lg text-slate-200 focus:outline-none">
+                            <select id="prof-grade" onchange="updateProfileLive()" class="w-full bg-[#060d1b] border border-slate-700 px-3 py-2.5 rounded-lg text-slate-200 focus:outline-none focus:border-indigo-500 transition">
                                 <option value="A+">امتياز مع مرتبة الشرف (A+)</option>
                                 <option value="A">امتياز (A)</option>
                                 <option value="B">جيد جداً (B)</option>
@@ -516,309 +600,222 @@
                     </div>
                 </div>
 
-                <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900">
-                    <h3 class="font-bold text-white text-base mb-2">كيف يؤسس هذا الملف لمستويات غير مسبوقة من الموثوقية؟</h3>
-                    <p class="text-xs text-slate-400 leading-relaxed">
-                        بدلاً من ترك الخيار للعميل للمجازفة بتوظيف طلاب لا يعرف كفاءتهم، يستطيع العميل استعراض لوحة مهارات الطالب ودرجاته، مع القدرة على تفحص جودة الأكواد البرمجية مباشرة من الواجهة مما يختصر أي حاجة لفترة تجريبية.
-                    </p>
+                <div class="bg-slate-900/40 border border-slate-800/50 rounded-xl p-5">
+                    <h3 class="font-bold text-white text-sm mb-2">كيف يؤسس هذا الملف لمستويات غير مسبوقة من الموثوقية؟</h3>
+                    <p class="text-xs text-slate-500 leading-relaxed mb-4">بدلاً من ترك الخيار للعميل للمجازفة بتوظيف طلاب لا يعرف كفاءتهم، يستطيع العميل استعراض لوحة مهارات الطالب ودرجاته، مع القدرة على تفحص جودة الأكواد البرمجية مباشرة من الواجهة مما يختصر أي حاجة لفترة تجريبية.</p>
                     <div class="collaboration-box" data-section="feature_trust_profile"></div>
                 </div>
             </section>
 
-            <!-- SECTION 5: AI DYNAMIC SQUADS -->
-            <section id="tab-squads" class="tab-content hidden space-y-8 animate-fade-in">
-                <div class="bg-gradient-to-r from-purple-500/15 to-indigo-500/10 p-6 rounded-xl border border-slate-900">
-                    <h2 class="text-2xl font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-people-group text-purple-400"></i> تشكيل الفرق التلقائية وتتابع دعوة الاحتياطي (AI Squads Simulator)</h2>
-                    <p class="text-xs text-slate-300 mt-2 leading-relaxed">
+            <!-- ════════════════════════════════
+                 TAB 5: AI SQUADS
+            ════════════════════════════════ -->
+            <section id="tab-squads" class="tab-content hidden space-y-6 animate-fade-in">
+                <div class="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 border border-slate-800/60 rounded-xl p-5">
+                    <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-people-group text-purple-400"></i>
+                        تشكيل الفرق التلقائية وتتابع دعوة الاحتياطي (AI Squads)
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-2 leading-relaxed">
                         تحدي المشروعات الكبيرة يكمن في تعذر التسليم من الأفراد المستقلين. قمنا ببرمجة محاكي ذكي يوضح آلية تشكيل الفريق آلياً بالذكاء الاصطناعي بناءً على الميزانية والأدوار المطلوبة مع ضمان الاستقرار في حال رفض أحدهم العقد.
                     </p>
                 </div>
 
-                <!-- Interactive Squad simulator widget -->
-                <div class="bg-slate-900 border border-slate-850 rounded-2xl p-6 space-y-6 shadow-2xl">
-                    <div class="flex justify-between items-center border-b border-slate-800 pb-3 flex-wrap gap-2">
+                <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-5 shadow-xl">
+                    <div class="flex justify-between items-center border-b border-slate-800 pb-4 flex-wrap gap-2">
                         <div>
-                            <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-sliders text-purple-400"></i> محاكي تشكيل الفريق السحابي</h3>
-                            <p class="text-xs text-slate-400">اضبط مواصفات مشروع العميل لترى كيف يستخرج الـ AI الأدوار ويدعو البديل تلقائياً:</p>
+                            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-sliders text-purple-400"></i> محاكي تشكيل الفريق السحابي
+                            </h3>
+                            <p class="text-[11px] text-slate-500 mt-0.5">اضبط مواصفات مشروع العميل لترى كيف يستخرج الـ AI الأدوار ويدعو البديل تلقائياً:</p>
                         </div>
-                        <button onclick="runAdvancedSquadSimulation()" class="bg-purple-500 hover:bg-purple-600 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition shadow-lg shadow-purple-500/15">
-                            تشغيل المحاكاة السريعة
+                        <button onclick="runAdvancedSquadSimulation()" class="flex items-center gap-2 bg-purple-500 hover:bg-purple-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs transition shadow-lg shadow-purple-500/20">
+                            <i class="fa-solid fa-play text-[10px]"></i> تشغيل المحاكاة
                         </button>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs text-slate-300">
-
-                        <!-- Col 1: Config input -->
-                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
-                            <h4 class="font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-purple-400"></i> 1. مدخلات المشروع</h4>
-                            <div class="space-y-1">
-                                <label class="text-slate-500 font-bold block text-[10px]">ميزانية المشروع المقترحة:</label>
-                                <select id="squad-budget" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 font-semibold text-white">
-                                    <option value="15000">15,000 جنيه مصري</option>
-                                    <option value="30000">30,000 جنيه مصري</option>
-                                    <option value="50000">50,000 جنيه مصري</option>
-                                </select>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
+                        <div class="bg-[#060d1b] border border-slate-800 rounded-xl p-4 space-y-3">
+                            <h4 class="font-bold text-white flex items-center gap-1.5 text-[11px]">
+                                <i class="fa-solid fa-clipboard-list text-purple-400"></i> 1. مدخلات المشروع
+                            </h4>
+                            <div class="space-y-2">
+                                <div>
+                                    <label class="text-slate-600 font-bold block text-[10px] mb-1">ميزانية المشروع المقترحة:</label>
+                                    <select id="squad-budget" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 font-semibold text-slate-300 focus:outline-none focus:border-purple-500 transition">
+                                        <option value="15000">15,000 جنيه مصري</option>
+                                        <option value="30000">30,000 جنيه مصري</option>
+                                        <option value="50000">50,000 جنيه مصري</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-slate-600 font-bold block text-[10px] mb-1">حجم الفريق المطلوب:</label>
+                                    <select id="squad-size" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 font-semibold text-slate-300 focus:outline-none focus:border-purple-500 transition">
+                                        <option value="3">فريق ثلاثي (Frontend, Backend, Designer)</option>
+                                        <option value="4">فريق رباعي (Frontend, Backend, UI/UX, QA)</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="space-y-1">
-                                <label class="text-slate-500 font-bold block text-[10px]">مستوى حجم الفريق المطلوبة:</label>
-                                <select id="squad-size" class="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 font-semibold text-white">
-                                    <option value="3">فريق ثلاثي (Frontend, Backend, Designer)</option>
-                                    <option value="4">فريق رباعي (Frontend, Backend, UI/UX, QA)</option>
-                                </select>
-                            </div>
-                            <div class="bg-purple-500/10 border border-purple-500/20 p-2.5 rounded-lg">
-                                <p class="font-bold text-purple-400 mb-0.5"><i class="fa-solid fa-robot"></i> دور الـ AI في التفكيك:</p>
-                                <p class="text-slate-400 leading-relaxed text-[11px]">يقرأ الذكاء الاصطناعي المتطلبات، ويحللها لـ أدوار، ويوزع حصص الميزانية بالنسب المئوية تلقائياً ويجمدها بنظام الضمان لضمان سلامة التعامل.</p>
-                            </div>
-                        </div>
-
-                        <!-- Col 2: Invitation Queue log -->
-                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
-                            <h4 class="font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-reply-all text-purple-400"></i> 2. سجل تتابع الدعوات ومواقف الرد</h4>
-                            <div class="space-y-2.5 font-semibold" id="squad-invitation-log">
-                                <p class="text-slate-500 text-center py-6">انتظر تشغيل محاكاة تشكيل الفريق لرؤية الطابور الذكي...</p>
+                            <div class="bg-purple-500/8 border border-purple-500/15 p-3 rounded-xl">
+                                <p class="font-bold text-purple-400 mb-1 text-[10px]"><i class="fa-solid fa-robot ml-1"></i>دور الـ AI في التفكيك:</p>
+                                <p class="text-slate-500 leading-relaxed text-[10px]">يقرأ الذكاء الاصطناعي المتطلبات، ويحللها لأدوار، ويوزع حصص الميزانية بالنسب المئوية تلقائياً ويجمدها بنظام الضمان.</p>
                             </div>
                         </div>
 
-                        <!-- Col 3: Formed Team & Escrow lock -->
-                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-850 space-y-3">
-                            <h4 class="font-bold text-white flex items-center gap-1.5"><i class="fa-solid fa-lock text-emerald-400"></i> 3. الفريق المعتمد والضمان المالي</h4>
-                            <div class="space-y-3" id="squad-final-team">
-                                <p class="text-slate-500 text-center py-6">سيتم تشكيل وتجميع الفريق هنا تلقائياً...</p>
-                            </div>
-                            <div class="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg leading-relaxed" id="squad-escrow-alert" style="display:none;">
-                                <strong><i class="fa-solid fa-lock"></i> نظام الضمان المالي المدمج:</strong> تم تجميد ميزانية المشروع بأمان وصرف الدفعات مجزأة لكل طالب بنجاح فور تقييم التسليم وحل الفريق.
+                        <div class="bg-[#060d1b] border border-slate-800 rounded-xl p-4 space-y-3">
+                            <h4 class="font-bold text-white flex items-center gap-1.5 text-[11px]">
+                                <i class="fa-solid fa-reply-all text-purple-400"></i> 2. سجل تتابع الدعوات
+                            </h4>
+                            <div class="space-y-2 font-semibold" id="squad-invitation-log">
+                                <p class="text-slate-600 text-center py-6 text-[10px]">انتظر تشغيل المحاكاة لرؤية الطابور الذكي...</p>
                             </div>
                         </div>
 
+                        <div class="bg-[#060d1b] border border-slate-800 rounded-xl p-4 space-y-3">
+                            <h4 class="font-bold text-white flex items-center gap-1.5 text-[11px]">
+                                <i class="fa-solid fa-lock text-emerald-400"></i> 3. الفريق المعتمد والضمان المالي
+                            </h4>
+                            <div class="space-y-2" id="squad-final-team">
+                                <p class="text-slate-600 text-center py-6 text-[10px]">سيتم تشكيل الفريق هنا تلقائياً...</p>
+                            </div>
+                            <div class="p-3 bg-emerald-500/8 border border-emerald-500/15 rounded-xl leading-relaxed text-[10px] text-slate-400" id="squad-escrow-alert" style="display:none;">
+                                <strong class="text-emerald-400 block mb-1"><i class="fa-solid fa-lock ml-1"></i>نظام الضمان المالي المدمج:</strong>
+                                تم تجميد ميزانية المشروع بأمان وصرف الدفعات مجزأة لكل طالب فور تقييم التسليم وحل الفريق.
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Discussion Box for Squad Feature -->
-                <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900">
+                <div class="bg-slate-900/40 border border-slate-800/50 rounded-xl p-5">
                     <div class="collaboration-box" data-section="feature_ai_squads"></div>
                 </div>
             </section>
 
-            <!-- SECTION 5: MICRO GIGS & SOCIAL LAYER (DISCUSSION POINTS) -->
-            <section id="tab-gigs" class="tab-content hidden space-y-8 animate-fade-in">
-                <div class="bg-gradient-to-r from-fuchsia-500/15 via-slate-950 to-cyan-500/10 p-6 rounded-2xl border border-slate-800 relative overflow-hidden">
-                    <div class="absolute top-0 left-0 w-72 h-72 bg-fuchsia-500/5 rounded-full blur-3xl"></div>
-                    <h2 class="text-2xl font-extrabold text-white flex items-center gap-2"><i class="fa-solid fa-share-nodes text-fuchsia-400"></i> الطبقة الاجتماعية والمايكرو جيجز — نقاط للنقاش والاعتماد</h2>
-                    <p class="text-xs text-slate-300 mt-2 leading-relaxed max-w-4xl">
-                        هذه ميزات مقترحة لتحويل SkillBridge إلى منصة مجتمعية متكاملة. كل ميزة مكتوبة كنقطة نقاش (ماذا تفعل / لماذا مهمة / كيف ننفذها) وتحتها صندوق تصويت (صح / غلط) وتعليقات ليتفق الفريق على ما سيُبنى فعلياً. <strong>هذه نقاط تخطيط فقط — وليست منفّذة في المنتج.</strong>
+            <!-- ════════════════════════════════
+                 TAB 6: GIGS & SOCIAL
+            ════════════════════════════════ -->
+            <section id="tab-gigs" class="tab-content hidden space-y-6 animate-fade-in">
+                <div class="relative overflow-hidden bg-gradient-to-br from-fuchsia-500/10 via-slate-900/60 to-cyan-500/8 border border-slate-800/60 rounded-xl p-5">
+                    <div class="absolute -top-10 -left-10 w-40 h-40 bg-fuchsia-500/5 rounded-full blur-2xl"></div>
+                    <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-share-nodes text-fuchsia-400"></i>
+                        الطبقة الاجتماعية والمايكرو جيجز — نقاط للنقاش والاعتماد
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-2 leading-relaxed max-w-3xl">
+                        هذه ميزات مقترحة لتحويل SkillBridge إلى منصة مجتمعية متكاملة. كل ميزة مكتوبة كنقطة نقاش وتحتها صندوق تصويت وتعليقات ليتفق الفريق على ما سيُبنى فعلياً. <strong class="text-slate-300">هذه نقاط تخطيط فقط — وليست منفّذة في المنتج.</strong>
                     </p>
                 </div>
 
-                <!-- Micro Gigs (kept) -->
-                <div class="bg-slate-900 border border-slate-850 p-5 rounded-2xl space-y-4">
+                <!-- Micro Gigs -->
+                <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
                     <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
-                        <div class="w-9 h-9 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-400 text-lg"><i class="fa-solid fa-cubes"></i></div>
+                        <div class="w-9 h-9 rounded-xl bg-yellow-500/10 border border-yellow-500/15 flex items-center justify-center text-yellow-400">
+                            <i class="fa-solid fa-cubes"></i>
+                        </div>
                         <div>
                             <h3 class="font-bold text-white text-sm">المايكرو جيجز النشطة (للحركة اليومية والأرباح السريعة)</h3>
-                            <p class="text-[10px] text-slate-400">مهام صغيرة سريعة تضمن عملاً متواصلاً وخبرة وأرباحاً لكل الطلاب:</p>
+                            <p class="text-[10px] text-slate-500">مهام صغيرة سريعة تضمن عملاً متواصلاً وخبرة وأرباحاً لكل الطلاب:</p>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
-                        <div class="p-3 bg-slate-950 rounded-xl border border-slate-850 space-y-1">
-                            <div class="flex justify-between items-center"><span class="font-bold text-white">مراجعة واجهة (UI Feedback)</span><span class="bg-yellow-500/10 text-yellow-400 font-bold px-2 py-0.5 rounded text-[10px]">150 جنيه</span></div>
-                            <p class="text-slate-400">فحص واجهة عيادة جديدة وتقديم تقرير تحسين تجربة الدفع.</p>
+                        <div class="p-3 bg-[#060d1b] rounded-xl border border-slate-800 space-y-1.5">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-white">مراجعة واجهة (UI Feedback)</span>
+                                <span class="bg-yellow-500/10 text-yellow-400 font-bold px-2 py-0.5 rounded-lg border border-yellow-500/15 text-[10px]">150 ج</span>
+                            </div>
+                            <p class="text-slate-500">فحص واجهة عيادة جديدة وتقديم تقرير تحسين تجربة الدفع.</p>
                         </div>
-                        <div class="p-3 bg-slate-950 rounded-xl border border-slate-850 space-y-1">
-                            <div class="flex justify-between items-center"><span class="font-bold text-white">تدقيق أمني (Bug Hunting)</span><span class="bg-yellow-500/10 text-yellow-400 font-bold px-2 py-0.5 rounded text-[10px]">350 جنيه</span></div>
-                            <p class="text-slate-400">اختبار ومصادقة حزمة التوكنات على خوادم العميل يدوياً.</p>
+                        <div class="p-3 bg-[#060d1b] rounded-xl border border-slate-800 space-y-1.5">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-white">تدقيق أمني (Bug Hunting)</span>
+                                <span class="bg-yellow-500/10 text-yellow-400 font-bold px-2 py-0.5 rounded-lg border border-yellow-500/15 text-[10px]">350 ج</span>
+                            </div>
+                            <p class="text-slate-500">اختبار ومصادقة حزمة التوكنات على خوادم العميل يدوياً.</p>
                         </div>
-                        <div class="p-3 bg-slate-950 rounded-xl border border-slate-850 space-y-1">
-                            <div class="flex justify-between items-center"><span class="font-bold text-white">توثيق قاعدة بيانات</span><span class="bg-yellow-500/10 text-yellow-400 font-bold px-2 py-0.5 rounded text-[10px]">200 جنيه</span></div>
-                            <p class="text-slate-400">إعداد مخطط العلاقات والجداول لتسهيل ربط المطورين الجدد.</p>
+                        <div class="p-3 bg-[#060d1b] rounded-xl border border-slate-800 space-y-1.5">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-white">توثيق قاعدة بيانات</span>
+                                <span class="bg-yellow-500/10 text-yellow-400 font-bold px-2 py-0.5 rounded-lg border border-yellow-500/15 text-[10px]">200 ج</span>
+                            </div>
+                            <p class="text-slate-500">إعداد مخطط العلاقات والجداول لتسهيل ربط المطورين الجدد.</p>
                         </div>
                     </div>
-                    <div class="collaboration-box border-t border-slate-800/60 pt-3" data-section="feature_micro_gigs"></div>
+                    <div class="collaboration-box border-t border-slate-800/50 pt-3" data-section="feature_micro_gigs"></div>
                 </div>
 
-                <!-- Social feature discussion cards -->
-                <div class="space-y-2">
-                    <h3 class="text-sm font-bold text-white px-1"><i class="fa-solid fa-list-check text-fuchsia-400"></i> ميزات الطبقة الاجتماعية المقترحة (صوّت وعلّق على كل نقطة)</h3>
-                    
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-3 hover:border-fuchsia-500/30 transition">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-fuchsia-500/10 flex items-center justify-center text-fuchsia-400 text-base"><i class="fa-solid fa-pen-to-square"></i></div>
-                            <div>
-                                <span class="text-[10px] font-bold text-slate-500">نقطة نقاش #1</span>
-                                <h3 class="font-bold text-white text-sm">نظام نشر المنشورات (Posts Publishing)</h3>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-fuchsia-400 mb-1"><i class="fa-solid fa-circle-info ml-1"></i> ماذا تفعل؟</p><p class="text-slate-400 leading-relaxed">يسمح للطلاب والعملاء بنشر منشورات نصية وصور ومقتطفات أكواد على الـ Feed العام للمنصة.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-emerald-400 mb-1"><i class="fa-solid fa-bullseye ml-1"></i> لماذا مهمة؟</p><p class="text-slate-400 leading-relaxed">يحوّل المنصة من موقع عمل جامد إلى مجتمع حي يجذب الزيارات اليومية ويعرض إنجازات الطلاب.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-sky-400 mb-1"><i class="fa-solid fa-screwdriver-wrench ml-1"></i> كيف ننفذها؟</p><p class="text-slate-400 leading-relaxed">جدول Posts (id, author_id, content, media_url, created_at) + Endpoint POST /api/posts مع تحقق صلاحيات.</p></div>
-                        </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-3" data-section="social_posts"></div>
-                    </div>
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-3 hover:border-rose-500/30 transition">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 text-base"><i class="fa-solid fa-heart"></i></div>
-                            <div>
-                                <span class="text-[10px] font-bold text-slate-500">نقطة نقاش #2</span>
-                                <h3 class="font-bold text-white text-sm">نظام الإعجاب (Likes / Reactions)</h3>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-rose-400 mb-1"><i class="fa-solid fa-circle-info ml-1"></i> ماذا تفعل؟</p><p class="text-slate-400 leading-relaxed">زر إعجاب على كل منشور وتعليق مع عدّاد حي يوضح مدى تفاعل المجتمع مع المحتوى.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-emerald-400 mb-1"><i class="fa-solid fa-bullseye ml-1"></i> لماذا مهمة؟</p><p class="text-slate-400 leading-relaxed">مؤشر تفاعل اجتماعي يرفع ترتيب المحتوى الجيد ويحفّز الطلاب على المشاركة المفيدة.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-sky-400 mb-1"><i class="fa-solid fa-screwdriver-wrench ml-1"></i> كيف ننفذها؟</p><p class="text-slate-400 leading-relaxed">جدول Likes (user_id, post_id) بقيد فريد لمنع التكرار + Endpoint toggle POST /api/posts/:id/like.</p></div>
-                        </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-3" data-section="social_likes"></div>
-                    </div>
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-3 hover:border-amber-500/30 transition">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 text-base"><i class="fa-solid fa-comments"></i></div>
-                            <div>
-                                <span class="text-[10px] font-bold text-slate-500">نقطة نقاش #3</span>
-                                <h3 class="font-bold text-white text-sm">نظام التعليقات (Comments)</h3>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-amber-400 mb-1"><i class="fa-solid fa-circle-info ml-1"></i> ماذا تفعل؟</p><p class="text-slate-400 leading-relaxed">إمكانية التعليق على المنشورات والرد على التعليقات لإثراء النقاش حول المشاريع والأكواد.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-emerald-400 mb-1"><i class="fa-solid fa-bullseye ml-1"></i> لماذا مهمة؟</p><p class="text-slate-400 leading-relaxed">يبني حوارات تقنية بين الطلاب والعملاء ويزيد وقت بقاء المستخدم داخل المنصة.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-sky-400 mb-1"><i class="fa-solid fa-screwdriver-wrench ml-1"></i> كيف ننفذها؟</p><p class="text-slate-400 leading-relaxed">جدول Comments (id, post_id, author_id, content, parent_id) + Endpoint POST /api/posts/:id/comments.</p></div>
-                        </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-3" data-section="social_comments"></div>
-                    </div>
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-3 hover:border-cyan-500/30 transition">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 text-base"><i class="fa-solid fa-share-nodes"></i></div>
-                            <div>
-                                <span class="text-[10px] font-bold text-slate-500">نقطة نقاش #4</span>
-                                <h3 class="font-bold text-white text-sm">نظام المشاركة (Share / Repost)</h3>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-cyan-400 mb-1"><i class="fa-solid fa-circle-info ml-1"></i> ماذا تفعل؟</p><p class="text-slate-400 leading-relaxed">مشاركة منشور أو مشروع طالب داخل المنصة أو نسخ رابط خارجي لمشاركته على منصات أخرى.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-emerald-400 mb-1"><i class="fa-solid fa-bullseye ml-1"></i> لماذا مهمة؟</p><p class="text-slate-400 leading-relaxed">ينشر المحتوى الجيد ويجلب مستخدمين جدد ويعزز ظهور الطلاب الموهوبين.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-sky-400 mb-1"><i class="fa-solid fa-screwdriver-wrench ml-1"></i> كيف ننفذها؟</p><p class="text-slate-400 leading-relaxed">جدول Shares (user_id, post_id) + توليد رابط عام للمنشور + عدّاد مشاركات على البطاقة.</p></div>
-                        </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-3" data-section="social_shares"></div>
-                    </div>
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-3 hover:border-emerald-500/30 transition">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 text-base"><i class="fa-solid fa-user-plus"></i></div>
-                            <div>
-                                <span class="text-[10px] font-bold text-slate-500">نقطة نقاش #5</span>
-                                <h3 class="font-bold text-white text-sm">المتابعة وإلغاء المتابعة (Follow / Unfollow)</h3>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-emerald-400 mb-1"><i class="fa-solid fa-circle-info ml-1"></i> ماذا تفعل؟</p><p class="text-slate-400 leading-relaxed">متابعة الطلاب أو العملاء لمشاهدة منشوراتهم وتحديثاتهم أولاً بأول في الـ Feed.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-emerald-400 mb-1"><i class="fa-solid fa-bullseye ml-1"></i> لماذا مهمة؟</p><p class="text-slate-400 leading-relaxed">يتيح للعملاء متابعة الطلاب المميزين وتوظيفهم لاحقاً، ويبني شبكة علاقات مهنية.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-sky-400 mb-1"><i class="fa-solid fa-screwdriver-wrench ml-1"></i> كيف ننفذها؟</p><p class="text-slate-400 leading-relaxed">جدول Followers (follower_id, following_id) + بناء Feed مخصص بناءً على المتابَعين.</p></div>
-                        </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-3" data-section="social_follow"></div>
-                    </div>
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-3 hover:border-orange-500/30 transition">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-400 text-base"><i class="fa-solid fa-flag"></i></div>
-                            <div>
-                                <span class="text-[10px] font-bold text-slate-500">نقطة نقاش #6</span>
-                                <h3 class="font-bold text-white text-sm">نظام الإبلاغ (Report)</h3>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-orange-400 mb-1"><i class="fa-solid fa-circle-info ml-1"></i> ماذا تفعل؟</p><p class="text-slate-400 leading-relaxed">الإبلاغ عن أي منشور أو تعليق مسيء أو محتوى احتيالي ليصل للمراجعة من الـ Admin.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-emerald-400 mb-1"><i class="fa-solid fa-bullseye ml-1"></i> لماذا مهمة؟</p><p class="text-slate-400 leading-relaxed">يحافظ على بيئة جامعية نظيفة وآمنة ويحمي المنصة من المحتوى الضار أو المخالف.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-sky-400 mb-1"><i class="fa-solid fa-screwdriver-wrench ml-1"></i> كيف ننفذها؟</p><p class="text-slate-400 leading-relaxed">جدول Reports (reporter_id, target_type, target_id, reason, status) + لوحة مراجعة للـ Admin.</p></div>
-                        </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-3" data-section="social_report"></div>
-                    </div>
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-3 hover:border-red-500/30 transition">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-400 text-base"><i class="fa-solid fa-ban"></i></div>
-                            <div>
-                                <span class="text-[10px] font-bold text-slate-500">نقطة نقاش #7</span>
-                                <h3 class="font-bold text-white text-sm">نظام الحظر (Block)</h3>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-red-400 mb-1"><i class="fa-solid fa-circle-info ml-1"></i> ماذا تفعل؟</p><p class="text-slate-400 leading-relaxed">حظر أي مستخدم لمنع ظهور محتواه ومنعه من التواصل أو التعليق على ملفك.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-emerald-400 mb-1"><i class="fa-solid fa-bullseye ml-1"></i> لماذا مهمة؟</p><p class="text-slate-400 leading-relaxed">يمنح المستخدم تحكماً كاملاً في تجربته ويحميه من المضايقات أو السبام.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-sky-400 mb-1"><i class="fa-solid fa-screwdriver-wrench ml-1"></i> كيف ننفذها؟</p><p class="text-slate-400 leading-relaxed">جدول Blocks (blocker_id, blocked_id) + فلترة المحتوى والرسائل في طبقة الاستعلام.</p></div>
-                        </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-3" data-section="social_block"></div>
-                    </div>
-                    <div class="bg-slate-900/50 rounded-xl border border-slate-900 p-5 space-y-3 hover:border-indigo-500/30 transition">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 text-base"><i class="fa-solid fa-paper-plane"></i></div>
-                            <div>
-                                <span class="text-[10px] font-bold text-slate-500">نقطة نقاش #8</span>
-                                <h3 class="font-bold text-white text-sm">الرسائل المباشرة (Direct Messages)</h3>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-indigo-400 mb-1"><i class="fa-solid fa-circle-info ml-1"></i> ماذا تفعل؟</p><p class="text-slate-400 leading-relaxed">محادثات خاصة فورية بين الطالب والعميل للاتفاق على تفاصيل المشروع دون أدوات خارجية.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-emerald-400 mb-1"><i class="fa-solid fa-bullseye ml-1"></i> لماذا مهمة؟</p><p class="text-slate-400 leading-relaxed">يبقي كل التواصل داخل المنصة (موثّق وآمن) ويسهّل بدء التعاون فوراً.</p></div>
-                            <div class="bg-slate-950 rounded-lg border border-slate-850 p-3"><p class="font-bold text-sky-400 mb-1"><i class="fa-solid fa-screwdriver-wrench ml-1"></i> كيف ننفذها؟</p><p class="text-slate-400 leading-relaxed">جدول Messages (sender_id, receiver_id, content) + WebSocket / Socket.io للتسليم الفوري.</p></div>
-                        </div>
-                        <div class="collaboration-box border-t border-slate-800/60 pt-3" data-section="social_dm"></div>
-                    </div>
+                <!-- Social Features -->
+                <div class="space-y-3">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2 px-1">
+                        <i class="fa-solid fa-list-check text-fuchsia-400"></i>
+                        ميزات الطبقة الاجتماعية المقترحة (صوّت وعلّق على كل نقطة)
+                    </h3>
+
+                    <!-- Social cards generator helper -->
+                    <div id="social-features-container" class="space-y-3"></div>
                 </div>
             </section>
 
-            <!-- SECTION 6: PROACTIVE WINNING FEATURES & GAMIFICATION -->
-            <section id="tab-proactive" class="tab-content hidden space-y-8 animate-fade-in">
-                <div class="bg-gradient-to-r from-emerald-500/15 via-slate-950 to-indigo-500/10 p-6 sm:p-8 rounded-2xl border border-slate-900 relative overflow-hidden shadow-2xl">
-                    <div class="absolute top-0 left-0 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl"></div>
-                    <div class="max-w-4xl space-y-3">
-                        <span class="bg-emerald-500/10 text-emerald-400 text-xs font-extrabold px-3 py-1 rounded-full border border-emerald-500/20 inline-block uppercase">أفكار الـ Pitch الحصرية للمركز الأول</span>
+            <!-- ════════════════════════════════
+                 TAB 7: PROACTIVE & GAMIFICATION
+            ════════════════════════════════ -->
+            <section id="tab-proactive" class="tab-content hidden space-y-6 animate-fade-in">
+                <div class="relative overflow-hidden bg-gradient-to-br from-emerald-500/10 via-slate-900 to-indigo-500/10 border border-slate-800/60 rounded-xl p-6 sm:p-8 shadow-xl">
+                    <div class="absolute -top-16 -left-16 w-56 h-56 bg-indigo-500/6 rounded-full blur-3xl pointer-events-none"></div>
+                    <div class="relative max-w-3xl space-y-3">
+                        <span class="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-3 py-1 rounded-full border border-emerald-500/20 uppercase tracking-wider">
+                            <i class="fa-solid fa-trophy text-[9px]"></i> أفكار الـ Pitch الحصرية للمركز الأول
+                        </span>
                         <h2 class="text-2xl sm:text-3xl font-black text-white leading-tight">الميزات الإستراتيجية الأقوى وحلول الـ Gamification التفاعلية للطلاب</h2>
-                        <p class="text-slate-300 leading-relaxed text-xs sm:text-sm">
-                            دعمنا المنصة بـ 3 ميزات استباقية تربط الطلاب بالدراسة الأكاديمية والعملية بالكامل، بالإضافة لـ **لوحة صدارة تفاعلية** لحصد نقاط الخبرة (XP) وتوثيق الطلاب!
+                        <p class="text-slate-400 leading-relaxed text-xs sm:text-sm">
+                            دعمنا المنصة بـ 3 ميزات استباقية تربط الطلاب بالدراسة الأكاديمية والعملية بالكامل، بالإضافة لـ <strong class="text-slate-200">لوحة صدارة تفاعلية</strong> لحصد نقاط الخبرة (XP) وتوثيق الطلاب!
                         </p>
                     </div>
                 </div>
 
-                <!-- Interactive Gamified Leaderboard -->
-                <div class="bg-slate-900 border border-slate-850 p-6 rounded-2xl space-y-4 shadow-xl">
+                <!-- XP Leaderboard -->
+                <div class="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4 shadow-xl">
                     <div class="border-b border-slate-800 pb-3">
-                        <h3 class="font-bold text-white text-sm flex items-center gap-1.5"><i class="fa-solid fa-trophy text-yellow-400"></i> لوحة صدارة الطلاب وتراكم مستويات التوثيق (XP Leaderboard)</h3>
-                        <p class="text-xs text-slate-400">امنح الطلاب توصية تفاعلية (Endorse) لتشاهد كيف تزداد نقاط الخبرة (XP) ومستوى توثيقهم في المنصة تلقائياً:</p>
+                        <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-trophy text-yellow-400"></i>
+                            لوحة صدارة الطلاب وتراكم مستويات التوثيق (XP Leaderboard)
+                        </h3>
+                        <p class="text-[11px] text-slate-500 mt-1">امنح الطلاب توصية تفاعلية (Endorse) لتشاهد كيف تزداد نقاط الخبرة (XP) ومستوى توثيقهم في المنصة تلقائياً:</p>
                     </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold" id="leaderboard-container">
-                        <!-- Rendered dynamically -->
-                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="leaderboard-container"></div>
                 </div>
 
-                <!-- Proactive Features Description Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-300">
-
-                    <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-900 space-y-3 hover:border-emerald-500/25 transition">
-                        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 text-base"><i class="fa-solid fa-building-columns"></i></div>
-                        <h3 class="font-bold text-white text-sm">1. نظام اعتماد التدريب الميداني الجامعي (University Endorsement Loop)</h3>
-                        <p class="text-slate-400 leading-relaxed">
-                            تقوم الجامعات المصرية بطلب تدريب صيفي معتمد للطلاب كقيد للتخرج. قمنا بدمج دورة عمل مخصصة لأساتذة الجامعات (Academic Supervisors)؛ حيث يرسل الطالب مشروعه المنجز في المنصة للأستاذ لمراجعته، ليقوم الأستاذ باعتماده وتوثيقه كـ **ساعات تدريب صيفي معتمدة** برقم تسلسلي موحد من المنصة!
+                <!-- Proactive Features -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-400">
+                    <div class="bg-slate-900/50 border border-slate-800/60 hover:border-emerald-500/25 rounded-xl p-5 space-y-3 transition-all duration-300">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/15 flex items-center justify-center text-emerald-400 text-lg">
+                            <i class="fa-solid fa-building-columns"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">1. نظام اعتماد التدريب الميداني الجامعي</h3>
+                        <p class="leading-relaxed">
+                            تقوم الجامعات المصرية بطلب تدريب صيفي معتمد للطلاب كقيد للتخرج. قمنا بدمج دورة عمل مخصصة لأساتذة الجامعات (Academic Supervisors)؛ حيث يرسل الطالب مشروعه المنجز للأستاذ لمراجعته، ليقوم الأستاذ باعتماده وتوثيقه كـ <strong class="text-emerald-400">ساعات تدريب صيفي معتمدة</strong> برقم تسلسلي موحد!
                         </p>
                     </div>
-
-                    <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-900 space-y-3 hover:border-sky-500/25 transition">
-                        <div class="w-10 h-10 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-400 text-base"><i class="fa-solid fa-file-signature"></i></div>
-                        <h3 class="font-bold text-white text-sm">2. منشئ العقود الذكية بالذكاء الاصطناعي (AI SLA Contract Generator)</h3>
-                        <p class="text-slate-400 leading-relaxed">
+                    <div class="bg-slate-900/50 border border-slate-800/60 hover:border-sky-500/25 rounded-xl p-5 space-y-3 transition-all duration-300">
+                        <div class="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/15 flex items-center justify-center text-sky-400 text-lg">
+                            <i class="fa-solid fa-file-signature"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">2. منشئ العقود الذكية بالذكاء الاصطناعي (AI SLA Generator)</h3>
+                        <p class="leading-relaxed">
                             لحماية متبادلة للحقوق، قمنا بإعداد ميزة تقوم تلقائياً بصياغة عقد عمل قانوني مبسط باللغة العربية (SLA) يغطي: بنود الملكية الفكرية للكود، مواعيد التسليم والنسب، وشروط NDA الحساسة، بالاعتماد على ميزانية المشروع وحجم الفريق، ليوثق العقد بضغطة موافقة من الطرفين قبل الدفع.
                         </p>
                     </div>
-
-                    <div class="bg-slate-900/50 p-5 rounded-xl border border-slate-900 space-y-3 hover:border-indigo-500/25 transition">
-                        <div class="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 text-base"><i class="fa-solid fa-gamepad"></i></div>
-                        <h3 class="font-bold text-white text-sm">3. ميزة محاكي الأكواد الحي (Sandbox Code Runner Mockup)</h3>
-                        <p class="text-slate-400 leading-relaxed">
+                    <div class="bg-slate-900/50 border border-slate-800/60 hover:border-indigo-500/25 rounded-xl p-5 space-y-3 transition-all duration-300">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/15 flex items-center justify-center text-indigo-400 text-lg">
+                            <i class="fa-solid fa-gamepad"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">3. محاكي الأكواد الحي (Sandbox Code Runner)</h3>
+                        <p class="leading-relaxed">
                             لتأكيد المهارة العملية وتخفيف الشك، نوفر مستعرضاً حياً للأكواد في ملفات الطلاب؛ حيث تتيح الواجهة للعميل تشغيل واختبار ملفات الكود التي رفعها الطلاب للتطبيق في بيئة افتراضية تفاعلية حية (Sandbox Container).
                         </p>
                     </div>
-
                 </div>
 
-                <!-- Discussion Box for Proactive Features -->
-                <div class="bg-slate-900/40 p-6 rounded-xl border border-slate-900">
+                <div class="bg-slate-900/40 border border-slate-800/50 rounded-xl p-5">
                     <div class="collaboration-box" data-section="proactive_winning_features"></div>
                 </div>
             </section>
@@ -826,12 +823,13 @@
         </main>
     </div>
 
-    <!-- System Footer -->
-    <footer class="border-t border-slate-900 bg-slate-950 px-6 py-4 text-center text-xs text-slate-500">
-        <p>© 2026 بوابة نقاش وجلسات عمل مشروع SkillBridge 2.0. تم التطوير بهيكلية تفاعلية متماسكة لضمان المركز الأول.</p>
+    <!-- ══════════════════════════════════════════
+         FOOTER
+    ══════════════════════════════════════════ -->
+    <footer class="border-t border-slate-800/60 bg-[#080f1e] px-6 py-3 text-center text-[10px] text-slate-600 shrink-0">
+        <p>© 2026 بوابة نقاش وجلسات عمل مشروع <span class="text-emerald-500/60">SkillBridge 2.0</span> – مزامنة لحظية عبر Firebase Realtime Database</p>
     </footer>
 
-    <!-- Persistent Scripts -->
     <script src="app.js"></script>
 </body>
 </html>
