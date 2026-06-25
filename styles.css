@@ -1,41 +1,112 @@
-/* CSS Animations & Interactive States */
+/* ─── SkillBridge 2.0 – styles.css ─────────────────────────── */
+
+/* Keyframes */
 @keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(6px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0);   }
 }
 
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(12px); }
+    to   { opacity: 1; transform: translateX(0);    }
+}
+
+/* Utility classes */
 .animate-fade-in {
     animation: fadeIn 0.25s ease-out forwards;
 }
 
+/* Sidebar nav buttons */
 .nav-btn {
     cursor: pointer;
-    border-right: 4px solid transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    opacity: 0;
+    transition: opacity 0.2s;
 }
 
 .nav-btn.active {
-    background-color: #0f172a !important;
+    background-color: rgba(16, 185, 129, 0.08) !important;
     color: #ffffff !important;
-    border-left: 4px solid #10b981;
+    border-right: 3px solid #10b981;
+}
+
+.nav-btn.active span:first-child {
+    background-color: rgba(16, 185, 129, 0.2) !important;
 }
 
 [dir="rtl"] .nav-btn.active {
+    border-right: 3px solid #10b981;
     border-left: none;
-    border-right: 4px solid #10b981;
 }
 
-.vote-btn-active {
+/* Vote buttons active states */
+.vote-active-yes {
     background-color: rgba(16, 185, 129, 0.15) !important;
-    border-color: #10b981 !important;
+    border-color: rgba(16, 185, 129, 0.5) !important;
+    color: #10b981 !important;
 }
 
-.vote-btn-disactive {
+.vote-active-no {
     background-color: rgba(244, 63, 94, 0.15) !important;
-    border-color: #f43f5e !important;
+    border-color: rgba(244, 63, 94, 0.5) !important;
+    color: #f43f5e !important;
+}
+
+/* Smooth section transitions */
+.tab-content {
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Better focus rings */
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+}
+
+/* Mobile sidebar transition */
+@media (max-width: 1023px) {
+    #sidebar {
+        top: 0;
+        height: 100%;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    #sidebar.translate-x-0 {
+        transform: translateX(0);
+        box-shadow: -20px 0 60px rgba(0,0,0,0.6);
+    }
+}
+
+/* Leaderboard rank shimmer on hover */
+#leaderboard-container > div:hover {
+    transform: translateY(-2px);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+/* Terminal text selection */
+#terminal-output ::selection {
+    background: rgba(16, 185, 129, 0.25);
+}
+
+/* Smooth bar transitions */
+#global-approval-bar,
+[id^="live-"][id$="-bar"] {
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Better scrollbar for chat */
+#chat-container::-webkit-scrollbar { width: 4px; }
+#chat-container::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+
+/* Responsive typography scale */
+@media (max-width: 640px) {
+    h2.text-xl  { font-size: 1.125rem; }
+    h2.text-2xl { font-size: 1.25rem; }
 }
