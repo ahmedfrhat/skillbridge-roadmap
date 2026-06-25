@@ -10,13 +10,14 @@
 //     في Firebase Console: Project Settings → Your apps → Web app
 // ───────────────────────────────────────────────────────────
 const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyDemo_SkillBridge_Replace_Me",
-    authDomain:        "skillbridge-team.firebaseapp.com",
-    databaseURL:       "https://skillbridge-team-default-rtdb.firebaseio.com",
-    projectId:         "skillbridge-team",
-    storageBucket:     "skillbridge-team.appspot.com",
-    messagingSenderId: "000000000000",
-    appId:             "1:000000000000:web:0000000000000000"
+    apiKey:            "AIzaSyDLx-qIIgOEHUvrfohYAC5WrJHeSSEb1K0",
+    authDomain:        "skillbridge-ad34d.firebaseapp.com",
+    databaseURL:       "https://skillbridge-ad34d-default-rtdb.firebaseio.com",
+    projectId:         "skillbridge-ad34d",
+    storageBucket:     "skillbridge-ad34d.firebasestorage.app",
+    messagingSenderId: "440075778403",
+    appId:             "1:440075778403:web:f5e5cfa6c70d59ba08bb56",
+    measurementId:     "G-HC8P9EPK9B"
 };
 
 // ─── STATE ──────────────────────────────────────────────────
